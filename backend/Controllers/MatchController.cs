@@ -22,10 +22,28 @@ public class MatchController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAvailableMatches()
     {
+        // Lấy userId nếu đã đăng nhập (không bắt buộc - khách vãng lai vẫn xem được)
+        long? currentUserId = null;
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userIdString) && long.TryParse(userIdString, out var parsedId))
+            currentUserId = parsedId;
+
+        // Tìm các đội mà user đang là Đội Trưởng
+        List<long> myTeamIds = new();
+        if (currentUserId.HasValue)
+        {
+            myTeamIds = await _context.Teams
+                .Where(t => t.ManagerId == currentUserId.Value)
+                .Select(t => t.Id)
+                .ToListAsync();
+        }
+
         var matches = await _context.Matches
             .Include(m => m.CreatorTeam)
             .Include(m => m.OpponentTeam)
-            .Where(m => m.Status == "finding" || m.Status == "waiting_approval")
+            .Where(m => (m.Status == "finding" || m.Status == "waiting_approval")
+                     && (myTeamIds.Count == 0 || !myTeamIds.Contains(m.CreatorTeamId))
+                     && m.MatchTime >= DateTime.Now)
             .Select(m => new MatchResponse
             {
                 Id = m.Id,
@@ -93,7 +111,32 @@ public class MatchController : ControllerBase
 
         var match = await _context.Matches.FindAsync(id);
         if (match == null || match.Status != "finding")
-            return BadRequest(new { message = "Kèo không còn hợp lệ mặt trạng thái tìm đối."});
+            return BadRequest(new { message = "Kèo này không còn ở trạng thái tìm đối nữa." });
+
+        // Kiểm tra: Đội đã có kèo được chốt (là creator hoặc opponent) trong ngày đó chưa?
+        var matchDate = match.MatchTime.Date;
+        var alreadyHasConfirmedMatch = await _context.Matches
+            .AnyAsync(m => (m.CreatorTeamId == requestingTeamId || m.OpponentTeamId == requestingTeamId)
+                        && m.MatchTime.Date == matchDate
+                        && m.Id != id
+                        && m.Status != "cancelled");
+
+        // Kiểm tra: Đội đang có request PENDING cho một kèo KHÁC cùng ngày không?
+        var pendingMatchIds = await _context.MatchRequests
+            .Where(r => r.RequestingTeamId == requestingTeamId && r.Status == "pending" && r.MatchId != id)
+            .Select(r => r.MatchId)
+            .ToListAsync();
+        var alreadyPendingOtherMatchThatDay = await _context.Matches
+            .AnyAsync(m => pendingMatchIds.Contains(m.Id) && m.MatchTime.Date == matchDate);
+
+        var alreadyRequested = await _context.MatchRequests
+            .AnyAsync(r => r.MatchId == id && r.RequestingTeamId == requestingTeamId && r.Status == "pending");
+
+        if (alreadyRequested)
+            return BadRequest(new { message = "Đội của bạn đã gửi yêu cầu cho kèo này rồi." });
+
+        if (alreadyHasConfirmedMatch || alreadyPendingOtherMatchThatDay)
+            return BadRequest(new { message = $"Đội {team.Name} đã có kèo hoặc đang chờ duyệt kèo khác ngày {matchDate:dd/MM/yyyy}. Mỗi đội chỉ được 1 kèo/ngày!" });
 
         var req = new MatchRequest
         {
@@ -104,11 +147,73 @@ public class MatchController : ControllerBase
         };
 
         _context.MatchRequests.Add(req);
-        match.Status = "waiting_approval"; // Đội tạo kèo lúc này sẽ thấy trạng thái "Chờ duyệt ai đó"
+        // Kèo vẫn giữ status "finding" để nhiều đội được phép xin cùng lúc
         
+        var creatorTeam = await _context.Teams.FindAsync(match.CreatorTeamId);
+        if (creatorTeam != null && creatorTeam.ManagerId > 0)
+        {
+            _context.Notifications.Add(new Notification
+            {
+                UserId = creatorTeam.ManagerId,
+                Message = $"Đội {team.Name} muốn nhận kèo của bạn trên sân {match.StadiumName}.",
+                ActionLink = $"/matches/{match.Id}"
+            });
+        }
+
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Tuyệt vời, bạn đã gửi yêu cầu nhận kèo. Hãy chờ đối thủ xác nhận!" });
+    }
+
+    /// <summary>
+    /// Trả về danh sách đội mà user làm Đội Trưởng + chưa có kèo vào ngày chỉ định.
+    /// Dùng cho dropdown tạo kèo và dropdown xin kèo.
+    /// </summary>
+    [Authorize]
+    [HttpGet("my-available-teams")]
+    public async Task<IActionResult> GetMyAvailableTeams([FromQuery] DateTime date)
+    {
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
+            return Unauthorized();
+
+        var targetDate = date.Date;
+
+        // Lấy tất cả đội mình làm đội trưởng
+        var myTeams = await _context.Teams
+            .Where(t => t.ManagerId == userId)
+            .Select(t => new { t.Id, t.Name, t.SkillLevel })
+            .ToListAsync();
+
+        // Lấy các đội đã có kèo được chốt (creator hoặc opponent) trong ngày đó
+        var busyTeamIds = await _context.Matches
+            .Where(m => m.MatchTime.Date == targetDate && m.Status != "cancelled")
+            .Select(m => new[] { m.CreatorTeamId, m.OpponentTeamId ?? 0 })
+            .ToListAsync();
+
+        var busySet = busyTeamIds.SelectMany(x => x).Where(x => x != 0).ToHashSet();
+
+        // Lấy các đội đang có request PENDING cho kèo ngày đó (chưa bị từ chối)
+        var pendingTeamMatchIds = await _context.MatchRequests
+            .Where(r => r.Status == "pending")
+            .Select(r => new { r.RequestingTeamId, r.MatchId })
+            .ToListAsync();
+
+        var matchDatesById = await _context.Matches
+            .Where(m => m.MatchTime.Date == targetDate)
+            .Select(m => m.Id)
+            .ToListAsync();
+
+        var pendingTeamIds = pendingTeamMatchIds
+            .Where(r => matchDatesById.Contains(r.MatchId))
+            .Select(r => r.RequestingTeamId)
+            .ToHashSet();
+
+        busySet.UnionWith(pendingTeamIds);
+
+        var availableTeams = myTeams.Where(t => !busySet.Contains(t.Id)).ToList();
+
+        return Ok(availableTeams);
     }
 
     [HttpGet("{id}")]
@@ -201,6 +306,17 @@ public class MatchController : ControllerBase
 
         request.Status = "rejected";
 
+        var requestingTeam = await _context.Teams.FindAsync(request.RequestingTeamId);
+        if (requestingTeam != null && requestingTeam.ManagerId > 0)
+        {
+            _context.Notifications.Add(new Notification
+            {
+                UserId = requestingTeam.ManagerId,
+                Message = $"Rất tiếc, đội {match.CreatorTeam?.Name} đã từ chối yêu cầu nhận kèo của bạn.",
+                ActionLink = $"/matches/{match.Id}"
+            });
+        }
+
         // Nếu không còn pending nào, reset về "finding"
         var stillPending = await _context.MatchRequests
             .AnyAsync(r => r.MatchId == id && r.Id != requestId && r.Status == "pending");
@@ -241,6 +357,17 @@ public class MatchController : ControllerBase
         match.OpponentTeamId = request.RequestingTeamId;
         match.Status = "scheduled";
 
+        var requestingTeam = await _context.Teams.FindAsync(request.RequestingTeamId);
+        if (requestingTeam != null && requestingTeam.ManagerId > 0)
+        {
+            _context.Notifications.Add(new Notification
+            {
+                UserId = requestingTeam.ManagerId,
+                Message = $"Chúc mừng! Đội {match.CreatorTeam?.Name} đã chốt bạn làm đối thủ. Xem chi tiết chốt kèo.",
+                ActionLink = $"/matches/{match.Id}"
+            });
+        }
+
         // Từ chối tự động tất cả các đơn xin kèo khác
         var otherRequests = await _context.MatchRequests
             .Where(r => r.MatchId == id && r.Id != requestId && r.Status == "pending")
@@ -280,6 +407,20 @@ public class MatchController : ControllerBase
         if (approvedRequest != null)
         {
             approvedRequest.Status = "canceled";
+        }
+
+        if (match.OpponentTeamId.HasValue)
+        {
+            var opponentTeam = await _context.Teams.FindAsync(match.OpponentTeamId.Value);
+            if (opponentTeam != null && opponentTeam.ManagerId > 0)
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    UserId = opponentTeam.ManagerId,
+                    Message = $"Đội {match.CreatorTeam?.Name} đã huỷ kèo đấu giao hữu với bạn trên sân {match.StadiumName}.",
+                    ActionLink = $"/matches/{match.Id}"
+                });
+            }
         }
 
         match.OpponentTeamId = null;

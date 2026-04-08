@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@microsoft/signalr": "^10.0.0",
     "axios": "^1.14.0",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^1.7.0",

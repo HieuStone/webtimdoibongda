@@ -1,17 +1,85 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LogOut, User, Menu, X, Activity, Users, MapPin, CalendarDays } from 'lucide-react';
+import { LogOut, User, Menu, X, Activity, Users, MapPin, CalendarDays, Bell, CheckCircle2 } from 'lucide-react';
+import api from '@/lib/api';
+
+interface NotificationItem {
+  id: number;
+  message: string;
+  actionLink: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
 
 export default function Navbar() {
   const router = useRouter();
   const [userName, setUserName] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  // Notifications state
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [showNotifs, setShowNotifs] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotifications = async () => {
+    try {
+      if (localStorage.getItem('token')) {
+        const res = await api.get('/notification');
+        setNotifications(res.data);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải thông báo', err);
+    }
+  };
+
   useEffect(() => {
     setUserName(localStorage.getItem('userName'));
+    fetchNotifications();
+
+    // Polling mỗi 30 giây
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
+
+  // Click outside to close notifications dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setShowNotifs(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleRead = async (id: number, link: string | null) => {
+    try {
+      await api.post(`/notification/${id}/read`);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      setShowNotifs(false);
+      if (link) {
+        router.push(link);
+      }
+    } catch (err) {
+       console.error(err);
+    }
+  };
+
+  const handleReadAll = async () => {
+    try {
+      await api.post('/notification/read-all');
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -22,14 +90,14 @@ export default function Navbar() {
 
   const NavLinks = () => (
     <>
-      <Link href="/matches" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
-        <Activity className="w-5 h-5" /> Tìm Kèo
+      <Link href="/my-matches" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
+        <CalendarDays className="w-5 h-5" /> Lịch Của Tôi
       </Link>
       <Link href="/teams" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
         <Users className="w-5 h-5" /> Đội Bóng
       </Link>
-      <Link href="/my-matches" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
-        <CalendarDays className="w-5 h-5" /> Lịch Của Tôi
+      <Link href="/matches" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
+        <Activity className="w-5 h-5" /> Tìm Kèo
       </Link>
       <Link href="/dashboard" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
         <MapPin className="w-5 h-5" /> Quanh Đây
@@ -50,10 +118,71 @@ export default function Navbar() {
               <NavLinks />
             </div>
           </div>
-          
+
           <div className="hidden sm:flex items-center gap-4">
             {userName ? (
               <div className="flex items-center gap-4">
+                
+                {/* Bell Icon */}
+                <div className="relative" ref={notifRef}>
+                  <button 
+                    onClick={() => setShowNotifs(!showNotifs)}
+                    className="relative p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-full transition-colors flex items-center justify-center"
+                  >
+                    <Bell className="w-6 h-6" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Dropdown Notifcation */}
+                  {showNotifs && (
+                    <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                      <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm">
+                        <h3 className="font-bold text-gray-800">Thông báo {unreadCount > 0 && <span className="text-red-500 text-sm ml-1">({unreadCount} mới)</span>}</h3>
+                        {unreadCount > 0 && (
+                          <button onClick={handleReadAll} className="text-xs font-bold text-green-600 hover:text-green-700 flex items-center gap-1 transition-colors">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Đọc tất cả
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="max-h-[60vh] overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <div className="py-8 text-center text-gray-400 flex flex-col items-center gap-2">
+                             <Bell className="w-8 h-8 opacity-20" />
+                             <span className="text-sm font-medium">Bạn chưa có thông báo nào.</span>
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-gray-50">
+                            {notifications.map(n => (
+                              <div 
+                                key={n.id} 
+                                onClick={() => handleRead(n.id, n.actionLink)}
+                                className={`px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors ${!n.isRead ? 'bg-green-50/30' : ''}`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${!n.isRead ? 'bg-green-500' : 'bg-transparent'}`} />
+                                  <div>
+                                    <p className={`text-sm ${!n.isRead ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
+                                      {n.message}
+                                    </p>
+                                    <p className="text-xs text-gray-400 mt-1 font-medium">
+                                      {new Date(n.createdAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200">
                   <User className="w-4 h-4 text-green-600" />
                   {userName}

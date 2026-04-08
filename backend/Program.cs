@@ -6,8 +6,9 @@ using TimDoiBongDa.Api.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add controllers
+// Add controllers and SignalR
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 
 // Add DbContext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
@@ -24,9 +25,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.SetIsOriginAllowed(origin => true) // SignalR yêu cầu cái này thay vì AllowAnyOrigin nếu có thông tin credentials (cookies/tokens)
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
 
@@ -46,6 +48,21 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtSettings["Issuer"],
         ValidAudience = jwtSettings["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(key)
+    };
+    
+    // Support JWT passing via query string for SignalR WebSockets
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chathub"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -68,5 +85,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<TimDoiBongDa.Api.Hubs.ChatHub>("/chathub");
 
 app.Run();

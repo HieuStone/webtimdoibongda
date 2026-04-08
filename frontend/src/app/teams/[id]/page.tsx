@@ -7,6 +7,7 @@ import { Shield, ArrowLeft, CheckCircle, Clock, Loader2, User, LogOut, Crown, Us
 import api from '@/lib/api';
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import ChatBox from '@/components/ChatBox';
 
 export default function TeamDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -47,6 +48,19 @@ export default function TeamDetailsPage({ params }: { params: Promise<{ id: stri
       setMembers(members.map(m => m.userId === userId ? { ...m, status: 'approved' } : m));
     } catch (err: any) {
       alert(err.response?.data?.message || 'Lỗi khi phê duyệt.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReject = async (userId: number) => {
+    setActionLoading(userId);
+    try {
+      await api.post(`/team/${id}/reject-join/${userId}`);
+      // Lạc quan update UI
+      setMembers(members.map(m => m.userId === userId ? { ...m, status: 'rejected' } : m));
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Lỗi khi từ chối.');
     } finally {
       setActionLoading(null);
     }
@@ -164,6 +178,13 @@ export default function TeamDetailsPage({ params }: { params: Promise<{ id: stri
                   >
                     {actionLoading === req.userId ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle className="w-5 h-5" /> Ký Hợp Đồng</>}
                   </button>
+                  <button
+                    onClick={() => handleReject(req.userId)}
+                    disabled={actionLoading === req.userId}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold rounded-xl shadow-md disabled:opacity-70 flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5"
+                  >
+                    {actionLoading === req.userId ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle className="w-5 h-5" /> Từ Chối</>}
+                  </button>
                 </div>
               ))}
             </div>
@@ -278,6 +299,13 @@ export default function TeamDetailsPage({ params }: { params: Promise<{ id: stri
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Khung Chat Nội Bộ cho Đội Bóng */}
+        {(isManager || isMember) && (
+          <div className="mt-8 mb-12">
+            <ChatBox roomType="TEAM" roomId={Number(id)} />
           </div>
         )}
       </main>

@@ -1,7 +1,8 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.Text.RegularExpressions;
 using TimDoiBongDa.Api.Data;
 using TimDoiBongDa.Api.DTOs;
 using TimDoiBongDa.Api.Models;
@@ -134,6 +135,13 @@ public class TeamController : ControllerBase
             Status = "pending"
         };
 
+        _context.Notifications.Add(new Notification
+        {
+            UserId = team.ManagerId,
+            Message = $"Cầu thủ {(await _context.Users.FindAsync(userId)).Name} muốn tham gia đội bóng {team.Name}.",
+            ActionLink = $"/teams/{team.Id}"
+        });
+
         _context.TeamUsers.Add(teamUser);
         await _context.SaveChangesAsync();
 
@@ -201,9 +209,49 @@ public class TeamController : ControllerBase
             return BadRequest(new { message = "Cầu thủ này không tồn tại trong hàng đợi hoặc đã được duyệt." });
 
         request.Status = "approved";
+
+        _context.Notifications.Add(new Notification
+        {
+            UserId = userIdToApprove,
+            Message = $"Bạn đã là thành viên của {team.Name}.",
+            ActionLink = $"/teams/{team.Id}"
+        });
+
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Ngon! Bạn đã duyệt cầu thủ tham gia Đội bóng." });
+    }
+    [Authorize]
+    [HttpPost("{id}/reject-join/{userIdToReject}")]
+    public async Task<IActionResult> RejectJoinTeam(long id, long userIdToReject)
+    {
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var managerId))
+            return Unauthorized();
+
+        var team = await _context.Teams.FindAsync(id);
+        if (team == null) return NotFound(new { message = "Đội bóng không tồn tại." });
+
+        if (team.ManagerId != managerId)
+            return Forbid(); // Chỉ manager mới đc duyệtƯ
+
+        var request = await _context.TeamUsers
+            .FirstOrDefaultAsync(tu => tu.TeamId == id && tu.UserId == userIdToReject);
+
+        if (request == null || request.Status != "pending")
+            return BadRequest(new { message = "Cầu thủ này không tồn tại trong hàng đợi hoặc đã được duyệt." });
+
+        _context.TeamUsers.Remove(request);
+
+        _context.Notifications.Add(new Notification
+        {
+            UserId = userIdToReject,
+            Message = $"Đội {team.Name} đã từ chối lời mời xin gia nhập của bạn.",
+            ActionLink = $"/teams/{team.Id}"
+        });
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Bạn đã từ chối cầu thủ này" });
     }
 
     [Authorize]

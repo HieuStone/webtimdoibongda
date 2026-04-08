@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TimDoiBongDa.Api.Data;
 
@@ -11,9 +12,11 @@ using TimDoiBongDa.Api.Data;
 namespace TimDoiBongDa.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260408151850_AddNotifications")]
+    partial class AddNotifications
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -114,38 +117,6 @@ namespace TimDoiBongDa.Api.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("AttendanceVotes");
-                });
-
-            modelBuilder.Entity("TimDoiBongDa.Api.Models.ChatMessage", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<long>("RoomId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("RoomType")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<long>("SenderId")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SenderId");
-
-                    b.ToTable("ChatMessages");
                 });
 
             modelBuilder.Entity("TimDoiBongDa.Api.Models.Match", b =>
@@ -566,17 +537,6 @@ namespace TimDoiBongDa.Api.Migrations
                     b.Navigation("Session");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("TimDoiBongDa.Api.Models.ChatMessage", b =>
-                {
-                    b.HasOne("TimDoiBongDa.Api.Models.User", "Sender")
-                        .WithMany()
-                        .HasForeignKey("SenderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Sender");
                 });
 
             modelBuilder.Entity("TimDoiBongDa.Api.Models.Match", b =>

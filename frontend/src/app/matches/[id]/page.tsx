@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import { Activity, ArrowLeft, Loader2, MapPin, Calendar, CheckCircle, XCircle, MessageCircle, Star } from 'lucide-react';
 import api from '@/lib/api';
 import Link from 'next/link';
+import ChatBox from '@/components/ChatBox';
 
 export default function MatchDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -16,6 +17,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
   const [requests, setRequests] = useState<any[]>([]);
   const [currentProfile, setCurrentProfile] = useState<any>(null);
   const [myManagedTeams, setMyManagedTeams] = useState<any[]>([]);
+  const [availableTeams, setAvailableTeams] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,6 +43,16 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
         setMatchData(matchRes.data);
         setRequests(reqRes.data);
+
+        // Load danh sách đội chưa có kèo vào ngày match này (cho dropdown xin kèo)
+        try {
+          const matchTime = new Date(matchRes.data.matchTime);
+          const dateStr = matchTime.toISOString().split('T')[0];
+          const availRes = await api.get(`/match/my-available-teams?date=${dateStr}`);
+          setAvailableTeams(availRes.data);
+        } catch (e) {
+          // OK nếu chưa login
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -90,12 +102,9 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
     }
   };
 
-  const handleJoinMatch = async () => {
-    const teamIdPrompt = prompt("Nhập ID đội bóng của bạn để xin giao hữu:");
-    if (!teamIdPrompt) return;
-    
+  const handleJoinMatch = async (selectedTeamId: number) => {
     try {
-      await api.post(`/match/${id}/request-join`, Number(teamIdPrompt));
+      await api.post(`/match/${id}/request-join`, selectedTeamId);
       alert("Đã gửi yêu cầu ghép kèo thành công!");
       window.location.reload(); 
     } catch (error: any) {
@@ -122,6 +131,8 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
   const isMatchOwner = myManagedTeams.some(t => t.id === matchData.creatorTeamId);
   const pendingRequests = requests.filter(r => r.status === 'pending');
+  const isOpponentOrRequester = myManagedTeams.some(t => t.id === matchData.opponentTeamId || requests.some(r => r.requestingTeamId === t.id));
+  const canChat = isMatchOwner || isOpponentOrRequester;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -161,13 +172,35 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
           </div>
 
           {!isMatchOwner && matchData.status !== 'scheduled' && (
-             <div className="p-8 text-center border-b border-gray-100">
-                 <button 
-                   onClick={handleJoinMatch}
-                   className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg transition-transform hover:-translate-y-1 w-full sm:w-auto"
-                 >
-                    👉 Bấm Xin Giao Lưu Đối Này 👈
-                 </button>
+             <div className="p-8 border-b border-gray-100 flex flex-col items-center gap-4 bg-white">
+                <h3 className="text-lg font-bold text-gray-800">Chọn đội bóng bạn quản lý để xin kèo:</h3>
+                {myManagedTeams.length === 0 ? (
+                    <p className="text-red-500 font-medium bg-red-50 px-4 py-2 rounded-lg border border-red-100">Bạn chưa làm đội trưởng đội nào cả. Vui lòng vào mục Đội Bóng để khởi tạo đội trước!</p>
+                ) : availableTeams.length === 0 ? (
+                    <p className="text-orange-600 font-medium bg-orange-50 px-4 py-3 rounded-lg border border-orange-100">
+                      ⚠️ Tất cả đội của bạn đã có lịch đá ngày này rồi. Mỗi đội chỉ được phép 1 kèo/ngày!
+                    </p>
+                ) : (
+                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-center">
+                        <select 
+                            id="teamSelect" 
+                            className="bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 block px-4 py-3 min-w-[250px] font-medium"
+                        >
+                            {availableTeams.map((t) => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                        </select>
+                        <button 
+                          onClick={() => {
+                              const sel = document.getElementById('teamSelect') as HTMLSelectElement;
+                              if (sel) handleJoinMatch(Number(sel.value));
+                          }}
+                          className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg transition-transform hover:-translate-y-1 w-full sm:w-auto flex items-center justify-center gap-2"
+                        >
+                           👉 Gửi Yêu Cầu Giao Lưu
+                        </button>
+                    </div>
+                )}
              </div>
           )}
 
@@ -284,6 +317,13 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                   })}
                 </div>
             )}
+          </div>
+        )}
+
+        {/* Chat Box cho Cáp Kèo */}
+        {canChat && (
+          <div className="mt-8 mb-12">
+             <ChatBox roomType="MATCH" roomId={Number(id)} />
           </div>
         )}
       </main>

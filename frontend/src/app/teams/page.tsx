@@ -12,6 +12,7 @@ interface Team {
   shortName: string | null;
   skillLevel: number;
   managerName: string;
+  managerId: number;
 }
 
 export default function TeamsPage() {
@@ -38,6 +39,10 @@ export default function TeamsPage() {
       setActionLoading(null);
     }
   };
+
+  console.log("user", user);
+  console.log("teams", teams);
+  console.log("myTeams", myTeams);
 
   useEffect(() => {
     const fetchTeams = async () => {
@@ -142,7 +147,7 @@ export default function TeamsPage() {
                         <Link
                           href={`/teams/${team.id}`}
                           className="flex-1 flex justify-center items-center py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-colors shadow-sm">
-                          Quản Lý Đội
+                          {user?.id === team.managerId ? "Quản Lý Đội" : "Xem Chi Tiết"}
                         </Link>
                       </div>
                     </div>
