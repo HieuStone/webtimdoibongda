@@ -1,0 +1,40 @@
+# =========================
+# .NET Backend
+# =========================
+backend/bin/
+backend/obj/
+backend/.vs/
+backend/*.user
+backend/*.suo
+backend/*.cache
+
+# =========================
+# Next.js Frontend
+# =========================
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# =========================
+# IDE / Editor
+# =========================
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+.idea/
+
+# =========================
+# OS
+# =========================
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# =========================
+# Environment
+# =========================
+.env
+.env.local
+.env.*.local
