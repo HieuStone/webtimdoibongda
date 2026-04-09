@@ -506,4 +506,185 @@ public class MatchController : ControllerBase
 
         return Ok(new { message = "Lưu tỷ số trận đấu thành công!" });
     }
+
+    /// <summary>
+    /// Lấy danh sách kèo do user hiện tại tạo (đội mình làm đội trưởng), status finding/waiting_approval.
+    /// </summary>
+    [Authorize]
+    [HttpGet("my-created-matches")]
+    public async Task<IActionResult> GetMyCreatedMatches()
+    {
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
+            return Unauthorized();
+
+        var myTeamIds = await _context.Teams
+            .Where(t => t.ManagerId == userId)
+            .Select(t => t.Id)
+            .ToListAsync();
+
+        var matches = await _context.Matches
+            .Include(m => m.CreatorTeam)
+            .Include(m => m.OpponentTeam)
+            .Where(m => myTeamIds.Contains(m.CreatorTeamId)
+                     && (m.Status == "finding" || m.Status == "waiting_approval" || m.Status == "scheduled"))
+            .OrderByDescending(m => m.CreatedAt)
+            .Select(m => new MatchResponse
+            {
+                Id = m.Id,
+                CreatorTeamId = m.CreatorTeamId,
+                CreatorTeamName = m.CreatorTeam != null ? m.CreatorTeam.Name : "N/A",
+                OpponentTeamId = m.OpponentTeamId,
+                OpponentTeamName = m.OpponentTeam != null ? m.OpponentTeam.Name : null,
+                StadiumName = m.StadiumName,
+                MatchTime = m.MatchTime,
+                MatchType = m.MatchType,
+                SkillRequirement = m.SkillRequirement,
+                PaymentType = m.PaymentType,
+                Status = m.Status,
+                Note = m.Note
+            })
+            .ToListAsync();
+
+        return Ok(matches);
+    }
+
+    /// <summary>
+    /// Lấy danh sách yêu cầu nhận kèo mà user đã gửi (đội mình làm đội trưởng gửi).
+    /// </summary>
+    [Authorize]
+    [HttpGet("my-sent-requests")]
+    public async Task<IActionResult> GetMySentRequests()
+    {
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
+            return Unauthorized();
+
+        var myTeamIds = await _context.Teams
+            .Where(t => t.ManagerId == userId)
+            .Select(t => t.Id)
+            .ToListAsync();
+
+        var requests = await _context.MatchRequests
+            .Include(r => r.Match)
+                .ThenInclude(m => m!.CreatorTeam)
+            .Include(r => r.RequestingTeam)
+            .Where(r => myTeamIds.Contains(r.RequestingTeamId) && r.Status == "pending")
+            .OrderByDescending(r => r.CreatedAt)
+            .Select(r => new
+            {
+                r.Id,
+                r.MatchId,
+                r.RequestingTeamId,
+                RequestingTeamName = r.RequestingTeam != null ? r.RequestingTeam.Name : "N/A",
+                r.Status,
+                r.Message,
+                MatchStadiumName = r.Match != null ? r.Match.StadiumName : null,
+                MatchTime = r.Match != null ? r.Match.MatchTime : DateTime.MinValue,
+                MatchType = r.Match != null ? r.Match.MatchType : 0,
+                MatchStatus = r.Match != null ? r.Match.Status : "",
+                CreatorTeamName = r.Match != null && r.Match.CreatorTeam != null ? r.Match.CreatorTeam.Name : "N/A",
+                r.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(requests);
+    }
+
+    /// <summary>
+    /// Hủy kèo do mình tạo. Chuyển status thành cancelled, reject tất cả pending requests.
+    /// </summary>
+    [Authorize]
+    [HttpPost("{id}/cancel")]
+    public async Task<IActionResult> CancelMatch(long id)
+    {
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
+            return Unauthorized();
+
+        var match = await _context.Matches
+            .Include(m => m.CreatorTeam)
+            .FirstOrDefaultAsync(m => m.Id == id);
+
+        if (match == null) return NotFound(new { message = "Kèo không tồn tại." });
+        if (match.CreatorTeam == null || match.CreatorTeam.ManagerId != userId)
+            return Forbid();
+
+        if (match.Status == "finished")
+            return BadRequest(new { message = "Không thể hủy kèo đã kết thúc." });
+
+        if (match.Status == "cancelled")
+            return BadRequest(new { message = "Kèo này đã bị hủy trước đó." });
+
+        // Reject tất cả pending requests và gửi thông báo
+        var pendingRequests = await _context.MatchRequests
+            .Include(r => r.RequestingTeam)
+            .Where(r => r.MatchId == id && r.Status == "pending")
+            .ToListAsync();
+
+        foreach (var req in pendingRequests)
+        {
+            req.Status = "rejected";
+            if (req.RequestingTeam != null && req.RequestingTeam.ManagerId > 0)
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    UserId = req.RequestingTeam.ManagerId,
+                    Message = $"Kèo trên sân {match.StadiumName} của đội {match.CreatorTeam?.Name} đã bị hủy.",
+                    ActionLink = $"/matches"
+                });
+            }
+        }
+
+        // Thông báo cho đối thủ nếu đã chốt
+        if (match.OpponentTeamId.HasValue)
+        {
+            var opponentTeam = await _context.Teams.FindAsync(match.OpponentTeamId.Value);
+            if (opponentTeam != null && opponentTeam.ManagerId > 0)
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    UserId = opponentTeam.ManagerId,
+                    Message = $"Đội {match.CreatorTeam?.Name} đã hủy kèo giao hữu trên sân {match.StadiumName}.",
+                    ActionLink = $"/matches"
+                });
+            }
+        }
+
+        match.Status = "cancelled";
+        match.OpponentTeamId = null;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Đã hủy kèo thành công!" });
+    }
+
+    /// <summary>
+    /// Rút yêu cầu nhận kèo đã gửi (chỉ rút được khi status = pending).
+    /// </summary>
+    [Authorize]
+    [HttpDelete("{matchId}/withdraw-request")]
+    public async Task<IActionResult> WithdrawRequest(long matchId)
+    {
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
+            return Unauthorized();
+
+        var myTeamIds = await _context.Teams
+            .Where(t => t.ManagerId == userId)
+            .Select(t => t.Id)
+            .ToListAsync();
+
+        var request = await _context.MatchRequests
+            .FirstOrDefaultAsync(r => r.MatchId == matchId
+                                   && myTeamIds.Contains(r.RequestingTeamId)
+                                   && r.Status == "pending");
+
+        if (request == null)
+            return NotFound(new { message = "Không tìm thấy yêu cầu nhận kèo hoặc đã được xử lý." });
+
+        _context.MatchRequests.Remove(request);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Đã rút yêu cầu nhận kèo thành công!" });
+    }
 }
