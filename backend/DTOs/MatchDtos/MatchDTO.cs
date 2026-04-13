@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace TimDoiBongDa.Api.DTOs;
+namespace TimDoiBongDa.Api.DTOs.MatchDtos;
 
 public class CreateMatchRequest
 {

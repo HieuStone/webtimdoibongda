@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TimDoiBongDa.Api.Data;
-using TimDoiBongDa.Api.DTOs;
+using TimDoiBongDa.Api.DTOs.AuthDtos;
 using TimDoiBongDa.Api.Models;
 
 namespace TimDoiBongDa.Api.Controllers;

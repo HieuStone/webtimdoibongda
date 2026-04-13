@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TimDoiBongDa.Api.Data;
+using TimDoiBongDa.Api.Interfaces;
 using TimDoiBongDa.Api.Models;
 
 namespace TimDoiBongDa.Api.Controllers;
@@ -26,23 +27,24 @@ public class VoteAttendanceRequest
 public class AttendanceController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IBaseServices _baseServices;
 
-    public AttendanceController(AppDbContext context)
+    public AttendanceController(AppDbContext context, IBaseServices baseServices)
     {
         _context = context;
+        _baseServices = baseServices;
     }
 
     [Authorize]
     [HttpPost("session")]
     public async Task<IActionResult> CreateSession([FromBody] CreateAttendanceSessionRequest req)
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var managerId))
-            return Unauthorized();
+        var managerId = _baseServices.GetCurrentUserId();
+        if (managerId == null) return Unauthorized();
 
-        // Xạc minh quyền là quản lý của đội
-        var team = await _context.Teams.FirstOrDefaultAsync(t => t.Id == req.TeamId && t.ManagerId == managerId);
-        if (team == null) return Forbid();
+        // Xác minh quyền là quản lý của đội
+        var isManager = await _baseServices.IsTeamManagerAsync(req.TeamId, managerId.Value);
+        if (!isManager) return Forbid();
 
         var session = new AttendanceSession
         {
@@ -85,21 +87,12 @@ public class AttendanceController : ControllerBase
     [HttpGet("my-sessions")]
     public async Task<IActionResult> GetMySessions()
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
-            return Unauthorized();
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
 
         // Lấy tất cả team mà user tham gia
-        var myTeamIds = await _context.TeamUsers
-            .Where(tu => tu.UserId == userId)
-            .Select(tu => tu.TeamId)
-            .ToListAsync();
-
-        var managedTeamIds = await _context.Teams
-            .Where(t => t.ManagerId == userId)
-            .Select(t => t.Id)
-            .ToListAsync();
-
+        var myTeamIds = await _baseServices.GetUserTeamIdsAsync(userId.Value);
+        var managedTeamIds = await _baseServices.GetManagedTeamIdsAsync(userId.Value);
         var allTeamIds = myTeamIds.Union(managedTeamIds).Distinct().ToList();
 
         var sessions = await _context.AttendanceSessions
@@ -134,9 +127,8 @@ public class AttendanceController : ControllerBase
     [HttpPost("{sessionId}/vote")]
     public async Task<IActionResult> VoteAttendance(long sessionId, [FromBody] VoteAttendanceRequest req)
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
-            return Unauthorized();
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
 
         var session = await _context.AttendanceSessions.FindAsync(sessionId);
         if (session == null) return NotFound(new { message = "Lịch điểm danh không tồn tại." });
@@ -155,7 +147,7 @@ public class AttendanceController : ControllerBase
             _context.AttendanceVotes.Add(new AttendanceVote
             {
                 SessionId = sessionId,
-                UserId = userId,
+                UserId = userId.HasValue ? userId.Value : 0,
                 IsAttending = req.IsAttending,
                 Note = req.Note,
                 CreatedAt = DateTime.UtcNow

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace TimDoiBongDa.Api.DTOs;
+namespace TimDoiBongDa.Api.DTOs.TeamDtos;
 
 public class CreateTeamRequest
 {

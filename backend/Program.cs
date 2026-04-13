@@ -17,6 +17,10 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.Parse("8.0.30-mysql")));
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<TimDoiBongDa.Api.Interfaces.IBaseServices, TimDoiBongDa.Api.Services.BaseServices>();
+builder.Services.AddAutoMapper(typeof(Program));
+
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var key = Encoding.UTF8.GetBytes(jwtSettings["Key"] ?? throw new InvalidOperationException("JWT Key not found."));

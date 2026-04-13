@@ -131,8 +131,9 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
   const isMatchOwner = myManagedTeams.some(t => t.id === matchData.creatorTeamId);
   const pendingRequests = requests.filter(r => r.status === 'pending');
-  const isOpponentOrRequester = myManagedTeams.some(t => t.id === matchData.opponentTeamId || requests.some(r => r.requestingTeamId === t.id));
+  const isOpponentOrRequester = myManagedTeams.some(t => t.id === matchData.opponentTeamId || requests.some(r => r.teamId === t.id));
   const canChat = isMatchOwner || isOpponentOrRequester;
+  const alreadyRequested = requests.some(r => myManagedTeams.some(t => t.id === r.teamId));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -172,34 +173,44 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
           </div>
 
           {!isMatchOwner && matchData.status !== 'scheduled' && (
-             <div className="p-8 border-b border-gray-100 flex flex-col items-center gap-4 bg-white">
-                <h3 className="text-lg font-bold text-gray-800">Chọn đội bóng bạn quản lý để xin kèo:</h3>
-                {myManagedTeams.length === 0 ? (
-                    <p className="text-red-500 font-medium bg-red-50 px-4 py-2 rounded-lg border border-red-100">Bạn chưa làm đội trưởng đội nào cả. Vui lòng vào mục Đội Bóng để khởi tạo đội trước!</p>
-                ) : availableTeams.length === 0 ? (
-                    <p className="text-orange-600 font-medium bg-orange-50 px-4 py-3 rounded-lg border border-orange-100">
-                      ⚠️ Tất cả đội của bạn đã có lịch đá ngày này rồi. Mỗi đội chỉ được phép 1 kèo/ngày!
-                    </p>
+             <div className="p-8 border-b border-gray-100 flex flex-col items-center gap-4 bg-white font-medium">
+                {alreadyRequested ? (
+                  <div className="flex flex-col items-center gap-2 text-blue-600 bg-blue-50 px-6 py-4 rounded-2xl border border-blue-100">
+                    <CheckCircle className="w-8 h-8" />
+                    <span className="text-lg font-bold">Bạn đã gửi yêu cầu tham gia kèo này!</span>
+                    <p className="text-sm text-blue-500">Vui lòng chờ đội trưởng phản hồi hoặc liên hệ qua Chat.</p>
+                  </div>
                 ) : (
-                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-center">
-                        <select 
-                            id="teamSelect" 
-                            className="bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 block px-4 py-3 min-w-[250px] font-medium"
-                        >
-                            {availableTeams.map((t) => (
-                                <option key={t.id} value={t.id}>{t.name}</option>
-                            ))}
-                        </select>
-                        <button 
-                          onClick={() => {
-                              const sel = document.getElementById('teamSelect') as HTMLSelectElement;
-                              if (sel) handleJoinMatch(Number(sel.value));
-                          }}
-                          className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg transition-transform hover:-translate-y-1 w-full sm:w-auto flex items-center justify-center gap-2"
-                        >
-                           👉 Gửi Yêu Cầu Giao Lưu
-                        </button>
-                    </div>
+                  <>
+                    <h3 className="text-lg font-bold text-gray-800">Chọn đội bóng bạn quản lý để xin kèo:</h3>
+                    {myManagedTeams.length === 0 ? (
+                        <p className="text-red-500 font-medium bg-red-50 px-4 py-2 rounded-lg border border-red-100">Bạn chưa làm đội trưởng đội nào cả. Vui lòng vào mục Đội Bóng để khởi tạo đội trước!</p>
+                    ) : availableTeams.length === 0 ? (
+                        <p className="text-orange-600 font-medium bg-orange-50 px-4 py-3 rounded-lg border border-orange-100">
+                          ⚠️ Tất cả đội của bạn đã có lịch đá ngày này rồi. Mỗi đội chỉ được phép 1 kèo/ngày!
+                        </p>
+                    ) : (
+                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-center">
+                            <select 
+                                id="teamSelect" 
+                                className="bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 block px-4 py-3 min-w-[250px] font-medium"
+                            >
+                                {availableTeams.map((t) => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                ))}
+                            </select>
+                            <button 
+                              onClick={() => {
+                                  const sel = document.getElementById('teamSelect') as HTMLSelectElement;
+                                  if (sel) handleJoinMatch(Number(sel.value));
+                              }}
+                              className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg transition-transform hover:-translate-y-1 w-full sm:w-auto flex items-center justify-center gap-2"
+                            >
+                               👉 Gửi Yêu Cầu Giao Lưu
+                            </button>
+                        </div>
+                    )}
+                  </>
                 )}
              </div>
           )}

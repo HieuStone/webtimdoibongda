@@ -1,9 +1,12 @@
+using System.Linq.Expressions;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TimDoiBongDa.Api.Data;
 using TimDoiBongDa.Api.DTOs;
+using TimDoiBongDa.Api.DTOs.MatchDtos;
+using TimDoiBongDa.Api.Interfaces;
 using TimDoiBongDa.Api.Models;
 
 namespace TimDoiBongDa.Api.Controllers;
@@ -13,29 +16,25 @@ namespace TimDoiBongDa.Api.Controllers;
 public class MatchController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IBaseServices _baseServices;
 
-    public MatchController(AppDbContext context)
+    public MatchController(AppDbContext context, IBaseServices baseServices)
     {
         _context = context;
+        _baseServices = baseServices;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAvailableMatches()
     {
         // Lấy userId nếu đã đăng nhập (không bắt buộc - khách vãng lai vẫn xem được)
-        long? currentUserId = null;
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (!string.IsNullOrEmpty(userIdString) && long.TryParse(userIdString, out var parsedId))
-            currentUserId = parsedId;
+        long? currentUserId = _baseServices.GetCurrentUserId();
 
         // Tìm các đội mà user đang là Đội Trưởng
         List<long> myTeamIds = new();
         if (currentUserId.HasValue)
         {
-            myTeamIds = await _context.Teams
-                .Where(t => t.ManagerId == currentUserId.Value)
-                .Select(t => t.Id)
-                .ToListAsync();
+            myTeamIds = await _baseServices.GetManagedTeamIdsAsync(currentUserId.Value);
         }
 
         var matches = await _context.Matches
@@ -68,8 +67,8 @@ public class MatchController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateMatch([FromBody] CreateMatchRequest request)
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null)
             return Unauthorized();
 
         // Chỉ cho phép Đội trưởng (Manager) của đội mới có quyền Cáp Kèo
@@ -100,8 +99,8 @@ public class MatchController : ControllerBase
     [HttpPost("{id}/request-join")]
     public async Task<IActionResult> RequestToJoinMatch(long id, [FromBody] long requestingTeamId)
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null)
             return Unauthorized();
 
         // Kiểm tra quyền (phải là đội trưởng của team đi gửi yêu cầu cáp kèo)
@@ -135,8 +134,8 @@ public class MatchController : ControllerBase
         if (alreadyRequested)
             return BadRequest(new { message = "Đội của bạn đã gửi yêu cầu cho kèo này rồi." });
 
-        if (alreadyHasConfirmedMatch || alreadyPendingOtherMatchThatDay)
-            return BadRequest(new { message = $"Đội {team.Name} đã có kèo hoặc đang chờ duyệt kèo khác ngày {matchDate:dd/MM/yyyy}. Mỗi đội chỉ được 1 kèo/ngày!" });
+        if (alreadyHasConfirmedMatch)
+            return BadRequest(new { message = $"Đội {team.Name} đã có kèo được chốt vào ngày {matchDate:dd/MM/yyyy}. Mỗi đội chỉ được 1 kèo/ngày!" });
 
         var req = new MatchRequest
         {
@@ -155,7 +154,7 @@ public class MatchController : ControllerBase
             _context.Notifications.Add(new Notification
             {
                 UserId = creatorTeam.ManagerId,
-                Message = $"Đội {team.Name} muốn nhận kèo của bạn trên sân {match.StadiumName}.",
+                Message = $"Đội {team.Name} muốn nhận kèo ngày {match.MatchTime.ToString("dd/MM/yyyy")} của bạn trên sân {match.StadiumName}.",
                 ActionLink = $"/matches/{match.Id}"
             });
         }
@@ -171,13 +170,13 @@ public class MatchController : ControllerBase
     /// </summary>
     [Authorize]
     [HttpGet("my-available-teams")]
-    public async Task<IActionResult> GetMyAvailableTeams([FromQuery] DateTime date)
+    public async Task<IActionResult> GetMyAvailableTeams([FromQuery] string date)
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
-            return Unauthorized();
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
 
-        var targetDate = date.Date;
+        if (!DateTime.TryParse(date, out var targetDate))
+            return BadRequest(new { message = "Ngày không hợp lệ." });
 
         // Lấy tất cả đội mình làm đội trưởng
         var myTeams = await _context.Teams
@@ -192,24 +191,6 @@ public class MatchController : ControllerBase
             .ToListAsync();
 
         var busySet = busyTeamIds.SelectMany(x => x).Where(x => x != 0).ToHashSet();
-
-        // Lấy các đội đang có request PENDING cho kèo ngày đó (chưa bị từ chối)
-        var pendingTeamMatchIds = await _context.MatchRequests
-            .Where(r => r.Status == "pending")
-            .Select(r => new { r.RequestingTeamId, r.MatchId })
-            .ToListAsync();
-
-        var matchDatesById = await _context.Matches
-            .Where(m => m.MatchTime.Date == targetDate)
-            .Select(m => m.Id)
-            .ToListAsync();
-
-        var pendingTeamIds = pendingTeamMatchIds
-            .Where(r => matchDatesById.Contains(r.MatchId))
-            .Select(r => r.RequestingTeamId)
-            .ToHashSet();
-
-        busySet.UnionWith(pendingTeamIds);
 
         var availableTeams = myTeams.Where(t => !busySet.Contains(t.Id)).ToList();
 
@@ -368,14 +349,48 @@ public class MatchController : ControllerBase
             });
         }
 
-        // Từ chối tự động tất cả các đơn xin kèo khác
-        var otherRequests = await _context.MatchRequests
+        // Từ chối tự động tất cả các đơn xin kèo khác của CHÍNH TRẬN ĐẤU NÀY
+        var otherRequestsToThisMatch = await _context.MatchRequests
             .Where(r => r.MatchId == id && r.Id != requestId && r.Status == "pending")
             .ToListAsync();
             
-        foreach (var r in otherRequests)
+        foreach (var r in otherRequestsToThisMatch)
         {
             r.Status = "rejected";
+        }
+
+        // TỰ ĐỘNG HỦY các đơn xin kèo khác của 2 đội (Creator & Requestor) trong cùng ngày đó
+        var matchDate = match.MatchTime.Date;
+        
+        // 1. Đội đi xin (RequestingTeamId) đang xin các kèo khác cùng ngày -> Hủy
+        var otherRequestsFromRequestingTeam = await _context.MatchRequests
+            .Include(r => r.Match)
+            .Where(r => r.RequestingTeamId == request.RequestingTeamId 
+                     && r.Id != requestId 
+                     && r.Status == "pending")
+            .ToListAsync();
+            
+        foreach (var r in otherRequestsFromRequestingTeam)
+        {
+            if (r.Match != null && r.Match.MatchTime.Date == matchDate)
+            {
+                r.Status = "rejected"; // Hoặc có thể dùng status "cancelled" nếu muốn phân biệt
+            }
+        }
+
+        // 2. Đội chủ nhà (CreatorTeamId) cũng có thể đang đi xin các kèo khác cùng ngày -> Hủy
+        var otherRequestsFromCreatorTeam = await _context.MatchRequests
+            .Include(r => r.Match)
+            .Where(r => r.RequestingTeamId == match.CreatorTeamId 
+                     && r.Status == "pending")
+            .ToListAsync();
+
+        foreach (var r in otherRequestsFromCreatorTeam)
+        {
+            if (r.Match != null && r.Match.MatchTime.Date == matchDate)
+            {
+                r.Status = "rejected";
+            }
         }
 
         await _context.SaveChangesAsync();
@@ -435,50 +450,29 @@ public class MatchController : ControllerBase
     /// </summary>
     [Authorize]
     [HttpGet("my-matches")]
-    public async Task<IActionResult> GetMyMatches()
+    public async Task<IActionResult> GetMyMatches([FromQuery] MatchFilter filter)
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
-            return Unauthorized();
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
 
-        // Lấy tất cả team mà user đã tham gia (cả pending lẫn approved)
-        var myTeamIds = await _context.TeamUsers
-            .Where(tu => tu.UserId == userId)
-            .Select(tu => tu.TeamId)
-            .ToListAsync();
-
-        // Lấy cả những đội mà user làm Manager (dù chưa có trong TeamUsers)
-        var managedTeamIds = await _context.Teams
-            .Where(t => t.ManagerId == userId)
-            .Select(t => t.Id)
-            .ToListAsync();
-
+        var myTeamIds = await _baseServices.GetUserTeamIdsAsync(userId.Value);
+        var managedTeamIds = await _baseServices.GetManagedTeamIdsAsync(userId.Value);
         var allMyTeamIds = myTeamIds.Union(managedTeamIds).Distinct().ToList();
 
-        var matches = await _context.Matches
-            .Include(m => m.CreatorTeam)
-            .Include(m => m.OpponentTeam)
-            .Where(m => allMyTeamIds.Contains(m.CreatorTeamId) ||
-                        (m.OpponentTeamId.HasValue && allMyTeamIds.Contains(m.OpponentTeamId.Value)))
-            .OrderBy(m => m.MatchTime)
-            .Select(m => new MatchResponse
-            {
-                Id = m.Id,
-                CreatorTeamId = m.CreatorTeamId,
-                CreatorTeamName = m.CreatorTeam != null ? m.CreatorTeam.Name : "N/A",
-                OpponentTeamId = m.OpponentTeamId,
-                OpponentTeamName = m.OpponentTeam != null ? m.OpponentTeam.Name : null,
-                StadiumName = m.StadiumName,
-                MatchTime = m.MatchTime,
-                MatchType = m.MatchType,
-                SkillRequirement = m.SkillRequirement,
-                PaymentType = m.PaymentType,
-                Status = m.Status,
-                Note = m.Note,
-                CreatorScore = m.CreatorScore,
-                OpponentScore = m.OpponentScore
-            })
-            .ToListAsync();
+        var predicates = new List<Expression<Func<MatchResponse, bool>>>();
+
+        // Filter by Ownership/Role (Contextual filter)
+        if (filter.IsOpponent == true)
+        {
+            predicates.Add(m => m.OpponentTeamId.HasValue && allMyTeamIds.Contains(m.OpponentTeamId.Value));
+        }
+        else
+        {
+            predicates.Add(m => allMyTeamIds.Contains(m.CreatorTeamId) || 
+                               (m.OpponentTeamId.HasValue && allMyTeamIds.Contains(m.OpponentTeamId.Value)));
+        }
+
+        var matches = _baseServices.DataFilter<Match, MatchResponse>(filter, predicates.ToArray());
 
         return Ok(matches);
     }
@@ -514,14 +508,10 @@ public class MatchController : ControllerBase
     [HttpGet("my-created-matches")]
     public async Task<IActionResult> GetMyCreatedMatches()
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
-            return Unauthorized();
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
 
-        var myTeamIds = await _context.Teams
-            .Where(t => t.ManagerId == userId)
-            .Select(t => t.Id)
-            .ToListAsync();
+        var myTeamIds = await _baseServices.GetManagedTeamIdsAsync(userId.Value);
 
         var matches = await _context.Matches
             .Include(m => m.CreatorTeam)
@@ -630,7 +620,7 @@ public class MatchController : ControllerBase
                 _context.Notifications.Add(new Notification
                 {
                     UserId = req.RequestingTeam.ManagerId,
-                    Message = $"Kèo trên sân {match.StadiumName} của đội {match.CreatorTeam?.Name} đã bị hủy.",
+                    Message = $"Kèo trên sân {match.StadiumName} của đội {match.CreatorTeam?.Name} ngày {match.MatchTime.ToString("dd/MM/yyyy")} đã bị hủy.",
                     ActionLink = $"/matches"
                 });
             }

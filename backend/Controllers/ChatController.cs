@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TimDoiBongDa.Api.Data;
+using TimDoiBongDa.Api.Interfaces;
 
 namespace TimDoiBongDa.Api.Controllers;
 
@@ -12,23 +13,24 @@ namespace TimDoiBongDa.Api.Controllers;
 public class ChatController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IBaseServices _baseServices;
 
-    public ChatController(AppDbContext context)
+    public ChatController(AppDbContext context, IBaseServices baseServices)
     {
         _context = context;
+        _baseServices = baseServices;
     }
 
     [HttpGet("{roomType}/{roomId}")]
     public async Task<IActionResult> GetMessagesHistory(string roomType, long roomId)
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
-            return Unauthorized();
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
             
         // Check quyền (Tương tự logic trong Hub để không bị leak tin báo)
         if (roomType == "TEAM")
         {
-            var isManager = await _context.Teams.AnyAsync(t => t.Id == roomId && t.ManagerId == userId);
+            var isManager = await _baseServices.IsTeamManagerAsync(roomId, userId.Value);
             var isMember = await _context.TeamUsers.AnyAsync(tu => tu.TeamId == roomId && tu.UserId == userId);
             if (!isManager && !isMember) return Forbid(); 
         }

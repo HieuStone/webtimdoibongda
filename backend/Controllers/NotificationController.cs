@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TimDoiBongDa.Api.Data;
+using TimDoiBongDa.Api.Interfaces;
 using TimDoiBongDa.Api.Models;
 
 namespace TimDoiBongDa.Api.Controllers;
@@ -13,18 +14,19 @@ namespace TimDoiBongDa.Api.Controllers;
 public class NotificationController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IBaseServices _baseServices;
 
-    public NotificationController(AppDbContext context)
+    public NotificationController(AppDbContext context, IBaseServices baseServices)
     {
         _context = context;
+        _baseServices = baseServices;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetMyNotifications()
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
-            return Unauthorized();
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
 
         var notifications = await _context.Notifications
             .Where(n => n.UserId == userId)
@@ -45,9 +47,8 @@ public class NotificationController : ControllerBase
     [HttpPost("{id}/read")]
     public async Task<IActionResult> MarkAsRead(long id)
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
-            return Unauthorized();
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
 
         var notif = await _context.Notifications.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
         if (notif == null) return NotFound(new { message = "Thông báo không tồn tại." });
@@ -61,9 +62,8 @@ public class NotificationController : ControllerBase
     [HttpPost("read-all")]
     public async Task<IActionResult> MarkAllAsRead()
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
-            return Unauthorized();
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
 
         var unreadNotifs = await _context.Notifications
             .Where(n => n.UserId == userId && !n.IsRead)

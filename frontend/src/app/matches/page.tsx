@@ -47,9 +47,15 @@ export default function MatchesPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'mine'>('all');
   const [matches, setMatches] = useState<Match[]>([]);
   const [myMatches, setMyMatches] = useState<Match[]>([]);
+  const [joinedMatches, setJoinedMatches] = useState<Match[]>([]);
   const [myRequests, setMyRequests] = useState<MatchRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | string | null>(null);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [availableTeams, setAvailableTeams] = useState<any[]>([]);
+  const [loadingTeams, setLoadingTeams] = useState(false);
+  const [selectingMatchId, setSelectingMatchId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchMatches();
@@ -72,31 +78,63 @@ export default function MatchesPage() {
 
   const fetchMyData = async () => {
     try {
-      const [matchesRes, requestsRes] = await Promise.all([
+      const [createdRes, requestsRes, allMyMatchesRes] = await Promise.all([
         api.get('/match/my-created-matches'),
-        api.get('/match/my-sent-requests')
+        api.get('/match/my-sent-requests'),
+        api.get('/match/my-matches')
       ]);
-      setMyMatches(matchesRes.data);
+      setMyMatches(createdRes.data);
       setMyRequests(requestsRes.data);
+      
+      // Lọc ra những kèo mình là đối thủ (opponent)
+      const createdIds = new Set(createdRes.data.map((m: Match) => m.id));
+      const joined = allMyMatchesRes.data.filter((m: Match) => !createdIds.has(m.id));
+      setJoinedMatches(joined);
     } catch (error) {
       console.error('Lỗi khi tải dữ liệu cá nhân:', error);
     }
   };
 
-  const handleRequestJoin = async (matchId: number) => {
+  const handleRequestJoin = async (matchId: number, matchTime: string) => {
     if (!user) {
       alert("Vui lòng đăng nhập để nhận kèo!");
       return;
     }
     
-    // In a real app, we might want to show a team picker if the user has multiple teams
-    const teamIdPrompt = prompt("Nhập ID đội bóng của bạn để xin giao hữu (demo):");
-    if (!teamIdPrompt) return;
-    
+    setSelectingMatchId(matchId);
+    setLoadingTeams(true);
+    try {
+      // Lấy danh sách đội phù hợp cho ngày này
+      const response = await api.get(`/match/my-available-teams?date=${matchTime}`);
+      const teams = response.data;
+      
+      if (teams.length === 0) {
+        alert("Bạn không có đội nào sẵn sàng (chưa có đội hoặc đã có kèo khác) vào ngày này!");
+        return;
+      }
+      
+      if (teams.length === 1) {
+        if (confirm(`Sử dụng đội "${teams[0].name}" để nhận kèo này?`)) {
+          await submitRequestJoin(matchId, teams[0].id);
+        }
+      } else {
+        setAvailableTeams(teams);
+        setIsModalOpen(true);
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy danh sách đội:', error);
+      alert("Không thể lấy danh sách đội của bạn.");
+    } finally {
+      setLoadingTeams(false);
+    }
+  };
+
+  const submitRequestJoin = async (matchId: number, teamId: number) => {
     setActionLoading(matchId);
     try {
-      await api.post(`/match/${matchId}/request-join`, Number(teamIdPrompt));
+      await api.post(`/match/${matchId}/request-join`, teamId);
       alert("Đã gửi yêu cầu ghép kèo thành công!");
+      setIsModalOpen(false);
       fetchMatches();
       fetchMyData();
     } catch (error: any) {
@@ -247,11 +285,11 @@ export default function MatchesPage() {
 
                     <div className="pt-4 border-t border-gray-100 flex gap-3">
                       <button 
-                        onClick={() => handleRequestJoin(match.id)}
-                        disabled={actionLoading === match.id || match.status === 'scheduled'}
+                        onClick={() => handleRequestJoin(match.id, match.matchTime)}
+                        disabled={actionLoading === match.id || loadingTeams || match.status === 'scheduled'}
                         className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-70 flex justify-center items-center"
                       >
-                        {actionLoading === match.id ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : (match.status === 'scheduled' ? 'Đã Chốt Đối' : 'Nhận Kèo Này')}
+                        {(actionLoading === match.id || (loadingTeams && selectingMatchId === match.id)) ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : (match.status === 'scheduled' ? 'Đã Chốt Đối' : 'Nhận Kèo Này')}
                       </button>
                       <Link 
                         href={`/matches/${match.id}`}
@@ -306,6 +344,39 @@ export default function MatchesPage() {
               )}
             </div>
 
+            {/* Section: My Joined Matches (Kèo đã nhận) */}
+            <div>
+              <h2 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+                <CheckCircle className="w-6 h-6 text-emerald-600" /> Kèo bạn đã nhận ({joinedMatches.length})
+              </h2>
+              {joinedMatches.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 border border-dashed border-gray-300 text-center text-gray-500">
+                  Bạn chưa nhận kèo nào hoặc chưa có kèo nào được đối thủ chốt.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {joinedMatches.map(match => (
+                    <div key={match.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 relative">
+                      <div className="absolute top-4 right-4">
+                        {renderStatusBadge(match.status)}
+                      </div>
+                      <div className="font-bold text-gray-500 text-xs mb-1 uppercase tracking-wider">Đối thủ của:</div>
+                      <div className="font-bold text-lg mb-4 truncate pr-20">{match.creatorTeamName}</div>
+                      <div className="space-y-2 mb-6 text-sm text-gray-600">
+                        <div className="flex items-center gap-2"><MapPin className="w-4 h-4 opacity-40"/> {match.stadiumName}</div>
+                        <div className="flex items-center gap-2"><Calendar className="w-4 h-4 opacity-40"/> {new Date(match.matchTime).toLocaleString('vi-VN')}</div>
+                      </div>
+                      <div className="pt-4 border-t border-gray-50">
+                        <Link href={`/matches/${match.id}`} className="block w-full py-2 text-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg text-xs transition-colors">
+                          Chi Tiết Trận Đấu
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Section: My Sent Requests */}
             <div>
               <h2 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
@@ -353,6 +424,52 @@ export default function MatchesPage() {
           </div>
         )}
       </main>
+
+      {/* Team Selection Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Chọn đội của bạn</h3>
+                <p className="text-sm text-gray-500 mt-1">Chọn đội bạn muốn đại diện để nhận kèo này.</p>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <XCircle className="w-6 h-6 text-gray-400" />
+              </button>
+            </div>
+            
+            <div className="p-6 max-h-[400px] overflow-y-auto space-y-3">
+              {availableTeams.map(team => (
+                <button
+                  key={team.id}
+                  onClick={() => submitRequestJoin(selectingMatchId!, team.id)}
+                  disabled={actionLoading === selectingMatchId}
+                  className="w-full p-4 border-2 border-gray-100 rounded-2xl flex items-center justify-between hover:border-green-500 hover:bg-green-50 transition-all group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200">🛡️</div>
+                    <div className="text-left">
+                      <div className="font-bold text-gray-900">{team.name}</div>
+                      <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Trình độ: {formatSkill(team.skillLevel)}</div>
+                    </div>
+                  </div>
+                  <CheckCircle className="w-5 h-5 text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              ))}
+            </div>
+            
+            <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-100 transition-colors"
+              >
+                Hủy bỏ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,7 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using TimDoiBongDa.Api.Data;
-using TimDoiBongDa.Api.DTOs;
+using TimDoiBongDa.Api.DTOs.TeamDtos;
+using TimDoiBongDa.Api.Interfaces;
 using TimDoiBongDa.Api.Models;
 
 namespace TimDoiBongDa.Api.Controllers;
@@ -14,10 +15,12 @@ namespace TimDoiBongDa.Api.Controllers;
 public class TeamController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IBaseServices _baseServices;
 
-    public TeamController(AppDbContext context)
+    public TeamController(AppDbContext context, IBaseServices baseServices)
     {
         _context = context;
+        _baseServices = baseServices;
     }
 
     [HttpGet]
@@ -43,14 +46,10 @@ public class TeamController : ControllerBase
     [HttpGet("my-teams")]
     public async Task<IActionResult> GetMyTeams()
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
-            return Unauthorized();
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
 
-        var teamIds = await _context.TeamUsers
-            .Where(tu => tu.UserId == userId)
-            .Select(tu => tu.TeamId)
-            .ToListAsync();
+        var teamIds = await _baseServices.GetUserTeamIdsAsync(userId.Value);
             
         var teams = await _context.Teams
             .Include(t => t.Manager)
@@ -74,9 +73,8 @@ public class TeamController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateTeam([FromBody] CreateTeamRequest request)
     {
-        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
-            return Unauthorized();
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
 
         var team = new Team
         {
@@ -84,7 +82,7 @@ public class TeamController : ControllerBase
             ShortName = request.ShortName,
             AreaId = request.AreaId,
             SkillLevel = request.SkillLevel,
-            ManagerId = userId
+            ManagerId = userId.HasValue ? userId.Value : 0
         };
 
         _context.Teams.Add(team);
@@ -94,7 +92,7 @@ public class TeamController : ControllerBase
         var teamUser = new TeamUser
         {
             TeamId = team.Id,
-            UserId = userId,
+            UserId = userId.HasValue ? userId.Value : 0,
             Status = "approved"
         };
         _context.TeamUsers.Add(teamUser);
