@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="TimDoiBongDa.Api/TimDoiBongDa.Api.csproj" />
+  <Project Path="TimDoiBongDa.Application/TimDoiBongDa.Application.csproj" />
+  <Project Path="TimDoiBongDa.Domain/TimDoiBongDa.Domain.csproj" />
+  <Project Path="TimDoiBongDa.Infrastructure/TimDoiBongDa.Infrastructure.csproj" />
+</Solution>

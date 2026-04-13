@@ -90,17 +90,17 @@ export default function Navbar() {
 
   const NavLinks = () => (
     <>
+      <Link href="/matches/newfeed" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
+        <Activity className="w-5 h-5" /> Tìm Kèo
+      </Link>
+      <Link href="/matches/mymatch" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
+        <CheckCircle2 className="w-5 h-5" /> Kèo Của Tôi
+      </Link>
       <Link href="/my-matches" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
-        <CalendarDays className="w-5 h-5" /> Lịch Của Tôi
+        <CalendarDays className="w-5 h-5" /> Lịch Thi Đấu
       </Link>
       <Link href="/teams" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
         <Users className="w-5 h-5" /> Đội Bóng
-      </Link>
-      <Link href="/matches" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
-        <Activity className="w-5 h-5" /> Tìm Kèo
-      </Link>
-      <Link href="/dashboard" className="flex items-center gap-2 text-gray-600 hover:text-green-600 font-medium px-3 py-2 rounded-lg hover:bg-green-50 transition-colors">
-        <MapPin className="w-5 h-5" /> Quanh Đây
       </Link>
     </>
   );

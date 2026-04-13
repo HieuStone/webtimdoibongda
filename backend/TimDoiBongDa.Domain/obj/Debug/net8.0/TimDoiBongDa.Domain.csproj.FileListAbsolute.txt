@@ -1,0 +1,12 @@
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\bin\Debug\net8.0\TimDoiBongDa.Domain.deps.json
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\bin\Debug\net8.0\TimDoiBongDa.Domain.dll
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\bin\Debug\net8.0\TimDoiBongDa.Domain.pdb
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\obj\Debug\net8.0\TimDoiBongDa.Domain.GeneratedMSBuildEditorConfig.editorconfig
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\obj\Debug\net8.0\TimDoiBongDa.Domain.AssemblyInfoInputs.cache
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\obj\Debug\net8.0\TimDoiBongDa.Domain.AssemblyInfo.cs
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\obj\Debug\net8.0\TimDoiBongDa.Domain.csproj.CoreCompileInputs.cache
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\obj\Debug\net8.0\TimDoiBongDa.Domain.sourcelink.json
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\obj\Debug\net8.0\TimDoiBongDa.Domain.dll
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\obj\Debug\net8.0\refint\TimDoiBongDa.Domain.dll
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\obj\Debug\net8.0\TimDoiBongDa.Domain.pdb
+E:\GITHUB\WebTimDoiBongDa\backend\TimDoiBongDa.Domain\obj\Debug\net8.0\ref\TimDoiBongDa.Domain.dll
