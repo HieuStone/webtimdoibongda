@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TimDoiBongDa.Domain.Entities;
@@ -26,6 +26,10 @@ public class Match
     public DateTime MatchTime { get; set; }
 
     public int MatchType { get; set; } = 7; // 5, 7, 11
+
+    public bool IsHomeMatch { get; set; } = true; // True: Có sân nhà, False: Cần đi khách
+
+    public bool IsAutoMatch { get; set; } = false; // Bật tính năng tìm trận tự động
 
     public int SkillRequirement { get; set; } = 3;
 

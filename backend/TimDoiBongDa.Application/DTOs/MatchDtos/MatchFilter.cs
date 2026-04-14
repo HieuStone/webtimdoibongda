@@ -10,6 +10,7 @@ namespace TimDoiBongDa.Application.DTOs.MatchDtos
         public string? Status { get; set; }
         public bool? IsOpponent { get; set; }
         public long? TeamId { get; set; }
+        public bool? IsHomeMatch { get; set; }
 
         public override List<Expression<Func<MatchResponse, bool>>> GetPredicates()
         {
@@ -29,6 +30,11 @@ namespace TimDoiBongDa.Application.DTOs.MatchDtos
             if (TeamId.HasValue)
             {
                 predicates.Add(x => x.CreatorTeamId == TeamId.Value);
+            }
+
+            if (IsHomeMatch.HasValue)
+            {
+                predicates.Add(x => x.IsHomeMatch == IsHomeMatch.Value);
             }
 
             return predicates;

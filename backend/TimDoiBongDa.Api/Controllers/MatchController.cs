@@ -92,6 +92,8 @@ public class MatchController : ControllerBase
             AreaId = request.AreaId,
             MatchTime = request.MatchTime,
             MatchType = request.MatchType,
+            IsHomeMatch = request.IsHomeMatch,
+            IsAutoMatch = request.IsAutoMatch,
             SkillRequirement = request.SkillRequirement,
             PaymentType = request.PaymentType,
             Status = "finding",
@@ -100,6 +102,11 @@ public class MatchController : ControllerBase
 
         await _matchRepo.AddAsync(newMatch);
         await _matchRepo.SaveAsync();
+
+        if (newMatch.IsAutoMatch)
+        {
+            await TryAutoMatchAsync(newMatch.Id);
+        }
 
         return CreatedAtAction(nameof(GetAvailableMatches), new { id = newMatch.Id }, new { message = "Tìm đối thành công! Trận đấu đã được đăng lên sảnh.", matchId = newMatch.Id });
     }
@@ -663,5 +670,96 @@ public class MatchController : ControllerBase
         await _matchRequestRepo.SaveAsync();
 
         return Ok(new { message = "Đã rút yêu cầu nhận kèo thành công!" });
+    }
+
+    [Authorize]
+    [HttpPost("{id}/auto-match")]
+    public async Task<IActionResult> ToggleAutoMatch(long id, [FromBody] TimDoiBongDa.Application.DTOs.MatchDtos.ToggleAutoMatchDto req)
+    {
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        var match = await _matchRepo.Find(m => m.Id == id).Include(m => m.CreatorTeam).FirstOrDefaultAsync();
+        if (match == null) return NotFound(new { message = "Kèo không tồn tại." });
+        if (match.CreatorTeam == null || match.CreatorTeam.ManagerId != userId)
+            return Forbid();
+
+        if (match.Status != "finding")
+            return BadRequest(new { message = "Phải ở trạng thái đang tìm đối mới có thể tự động ghép." });
+
+        match.IsAutoMatch = req.IsEnabled;
+        _matchRepo.Update(match);
+        await _matchRepo.SaveAsync();
+
+        if (req.IsEnabled)
+        {
+            bool matched = await TryAutoMatchAsync(match.Id);
+            if (matched)
+                return Ok(new { message = "Bật tự động ghép thành công! Hệ thống ĐÃ TÌM THẤY đối thủ phù hợp và ghép ngay lập tức.", matched = true });
+            else
+                return Ok(new { message = "Bật tự động ghép thành công! Đang chờ đối thủ phù hợp..." });
+        }
+
+        return Ok(new { message = "Đã TẮT tự động ghép kèo." });
+    }
+
+    private async Task<bool> TryAutoMatchAsync(long matchId)
+    {
+        var sourceMatch = await _matchRepo.Find(m => m.Id == matchId).Include(m => m.CreatorTeam).FirstOrDefaultAsync();
+        if (sourceMatch == null || sourceMatch.Status != "finding" || !sourceMatch.IsAutoMatch) return false;
+
+        var targetMatch = await _matchRepo.Find(m => 
+            m.Id != sourceMatch.Id &&
+            m.Status == "finding" &&
+            m.IsAutoMatch == true &&
+            m.AreaId == sourceMatch.AreaId &&
+            m.MatchType == sourceMatch.MatchType &&
+            m.SkillRequirement == sourceMatch.SkillRequirement &&
+            m.IsHomeMatch != sourceMatch.IsHomeMatch)
+            .Include(m => m.CreatorTeam)
+            .ToListAsync();
+
+        var matchedTarget = targetMatch.FirstOrDefault(m => Math.Abs((m.MatchTime - sourceMatch.MatchTime).TotalMinutes) <= 15);
+
+        if (matchedTarget != null)
+        {
+            var homeMatch = sourceMatch.IsHomeMatch ? sourceMatch : matchedTarget;
+            var awayMatch = sourceMatch.IsHomeMatch ? matchedTarget : sourceMatch;
+
+            homeMatch.OpponentTeamId = awayMatch.CreatorTeamId;
+            homeMatch.Status = "scheduled";
+            homeMatch.IsAutoMatch = false;
+
+            awayMatch.Status = "cancelled";
+            awayMatch.Note = (awayMatch.Note + " [Đã ghép tự động vào kèo Sân nhà lúc " + homeMatch.MatchTime.ToString("HH:mm dd/MM") + "]").Trim();
+
+            _matchRepo.Update(homeMatch);
+            _matchRepo.Update(awayMatch);
+
+            if (homeMatch.CreatorTeam?.ManagerId > 0)
+            {
+                await _notificationRepo.AddAsync(new Notification
+                {
+                    UserId = homeMatch.CreatorTeam.ManagerId,
+                    Message = $"Hệ thống tự động ghép đội {awayMatch.CreatorTeam?.Name} làm đối thủ cho kèo của bạn.",
+                    ActionLink = $"/matches/{homeMatch.Id}"
+                });
+            }
+            if (awayMatch.CreatorTeam?.ManagerId > 0)
+            {
+                await _notificationRepo.AddAsync(new Notification
+                {
+                    UserId = awayMatch.CreatorTeam.ManagerId,
+                    Message = $"Hệ thống tự ghép đội bạn đi khách vào kèo sân nhà của {homeMatch.CreatorTeam?.Name} lúc {homeMatch.MatchTime:HH:mm}.",
+                    ActionLink = $"/matches/{homeMatch.Id}"
+                });
+            }
+
+            await _notificationRepo.SaveAsync();
+            await _matchRepo.SaveAsync();
+            return true;
+        }
+
+        return false;
     }
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TimDoiBongDa.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using TimDoiBongDa.Infrastructure.Data;
 namespace TimDoiBongDa.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260414073702_AddIsHomeMatch")]
+    partial class AddIsHomeMatch
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -167,9 +170,6 @@ namespace TimDoiBongDa.Infrastructure.Migrations
 
                     b.Property<long>("CreatorTeamId")
                         .HasColumnType("bigint");
-
-                    b.Property<bool>("IsAutoMatch")
-                        .HasColumnType("tinyint(1)");
 
                     b.Property<bool>("IsHomeMatch")
                         .HasColumnType("tinyint(1)");

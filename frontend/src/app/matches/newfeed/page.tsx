@@ -17,6 +17,7 @@ interface Match {
   skillRequirement: number;
   paymentType: string;
   status: string;
+  isHomeMatch: boolean;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -44,11 +45,12 @@ export default function NewfeedPage() {
   const [filterDate, setFilterDate] = useState<string>('');
   const [filterTeamId, setFilterTeamId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterHome, setFilterHome] = useState<'all' | 'home' | 'away'>('all');
 
   useEffect(() => {
     fetchMatches();
     fetchAllTeams();
-  }, [filterDate, filterTeamId]);
+  }, [filterDate, filterTeamId, filterHome]);
 
   const fetchAllTeams = async () => {
     try {
@@ -66,7 +68,8 @@ export default function NewfeedPage() {
         params: {
           matchTime: filterDate || undefined,
           teamId: filterTeamId || undefined,
-          searchTerm: searchTerm || undefined
+          searchTerm: searchTerm || undefined,
+          isHomeMatch: filterHome === 'all' ? undefined : filterHome === 'home'
         }
       });
       setMatches(response.data);
@@ -226,6 +229,12 @@ export default function NewfeedPage() {
           </Link>
         </div>
 
+        <div className="flex bg-gray-100 p-1 rounded-xl w-fit mb-6 overflow-x-auto">
+          <button onClick={() => setFilterHome('all')} className={`px-6 py-2 rounded-lg font-bold text-sm transition-all whitespace-nowrap ${filterHome === 'all' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>Tất cả</button>
+          <button onClick={() => setFilterHome('home')} className={`px-6 py-2 rounded-lg font-bold text-sm transition-all whitespace-nowrap ${filterHome === 'home' ? 'bg-white shadow-sm text-emerald-600 border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>⚽ Có Sân Nhà</button>
+          <button onClick={() => setFilterHome('away')} className={`px-6 py-2 rounded-lg font-bold text-sm transition-all whitespace-nowrap ${filterHome === 'away' ? 'bg-white shadow-sm text-orange-500 border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>✈️ Cần Đi Khách</button>
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-20 text-gray-400">
             <Loader2 className="w-10 h-10 animate-spin" />
@@ -254,7 +263,12 @@ export default function NewfeedPage() {
                         <p className="text-sm text-green-600 font-medium">Trình độ: {formatSkill(match.skillRequirement)}</p>
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg">Sân {match.matchType}</span>
+                    <div className="flex flex-col items-end gap-2">
+                       <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg border border-gray-200">Sân {match.matchType}</span>
+                       <span className={`px-2.5 py-1 text-xs font-bold rounded-lg border ${match.isHomeMatch ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                         {match.isHomeMatch ? '⚽ Có Sân Nhà' : '✈️ Cần Đi Khách'}
+                       </span>
+                    </div>
                   </div>
                   
                   <div className="space-y-2 mt-4 mb-6">

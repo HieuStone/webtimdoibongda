@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimDoiBongDa.Application.Interfaces;
 using TimDoiBongDa.Application.Interfaces.Repositories;
+using TimDoiBongDa.Application.DTOs.MatchDtos;
 using TimDoiBongDa.Domain.Entities;
 
 namespace TimDoiBongDa.Infrastructure.Repositories;

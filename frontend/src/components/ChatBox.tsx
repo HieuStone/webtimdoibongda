@@ -126,7 +126,7 @@ export default function ChatBox({ roomType, roomId }: ChatBoxProps) {
                     {!isMe && <div className="text-xs font-bold text-gray-500 mb-1">{m.senderName}</div>}
                     <div className="text-sm">{m.message}</div>
                     <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-green-200' : 'text-gray-400'}`}>
-                       {new Date(m.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                       {new Date(m.createdAt + (m.createdAt.endsWith('Z') ? '' : 'Z')).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                     </div>
                  </div>
               </div>

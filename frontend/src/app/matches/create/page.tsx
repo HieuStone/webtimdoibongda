@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
-import { Activity, MapPin, Trophy, ArrowLeft, Loader2, Calendar } from 'lucide-react';
+import { Activity, MapPin, Trophy, ArrowLeft, Loader2, Calendar, PlayCircle } from 'lucide-react';
 import api from '@/lib/api';
 import Link from 'next/link';
 
@@ -29,7 +29,9 @@ export default function CreateMatchPage() {
     matchType: 7,
     skillRequirement: 3,
     paymentType: '50-50',
-    note: ''
+    note: '',
+    isHomeMatch: true,
+    isAutoMatch: false
   });
 
   useEffect(() => {
@@ -132,16 +134,32 @@ export default function CreateMatchPage() {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Loại Kèo *</label>
+                <div className="flex gap-4">
+                  <label className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 border rounded-xl cursor-pointer text-center font-bold transition-all ${formData.isHomeMatch ? 'bg-emerald-600 text-white border-emerald-600 shadow-md transform scale-[1.02]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" name="isHomeMatch" className="hidden" checked={formData.isHomeMatch} onChange={() => setFormData({...formData, isHomeMatch: true})} />
+                    ⚽ Có Sân Nhà (Chủ nhà)
+                  </label>
+                  <label className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 border rounded-xl cursor-pointer text-center font-bold transition-all ${!formData.isHomeMatch ? 'bg-orange-500 text-white border-orange-500 shadow-md transform scale-[1.02]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="radio" name="isHomeMatch" className="hidden" checked={!formData.isHomeMatch} onChange={() => setFormData({...formData, isHomeMatch: false})} />
+                    ✈️ Cần Đi Khách (Làm khách)
+                  </label>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Tên Bãi/Sân Cỏ *</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    {formData.isHomeMatch ? "Tên Bãi/Sân Cỏ *" : "Tên Bãi/Sân Cỏ (Không bắt buộc)"}
+                  </label>
                   <input
                     type="text"
                     name="stadiumName"
-                    required
+                    required={formData.isHomeMatch}
                     value={formData.stadiumName}
                     onChange={handleChange}
-                    placeholder="VD: Sân Chảo Lửa, Sân 112..."
+                    placeholder={formData.isHomeMatch ? "VD: Sân Chảo Lửa, Sân 112..." : "Chưa rõ, chờ đối thủ chốt"}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white font-medium transition-all"
                   />
                 </div>
@@ -243,6 +261,27 @@ export default function CreateMatchPage() {
                   placeholder="Ví dụ: Đội đá văn minh lịch sự, không cãi vã chửi rủa, quần đùi áo cộc số chuẩn nhé anh em..."
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white font-medium outline-none resize-none transition-all"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                  <PlayCircle className="w-5 h-5 text-blue-600" /> Tính năng ghép kèo tự động
+                </label>
+                <label className="flex items-center cursor-pointer bg-gray-50 p-4 border border-gray-200 rounded-xl transition-all hover:bg-blue-50">
+                  <div className="relative">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only" 
+                      checked={formData.isAutoMatch}
+                      onChange={(e) => setFormData({...formData, isAutoMatch: e.target.checked})}
+                    />
+                    <div className={`block w-14 h-8 rounded-full transition-colors ${formData.isAutoMatch ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
+                    <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${formData.isAutoMatch ? 'transform translate-x-6' : ''}`}></div>
+                  </div>
+                  <div className="ml-4 font-bold text-gray-700 text-sm">
+                    {formData.isAutoMatch ? 'BẬT (Hệ thống sẽ tự động tìm và ghép với đội có cùng trình độ)' : 'TẮT Auto-Match (Chờ tự tìm đối thủ)'}
+                  </div>
+                </label>
               </div>
 
               <div className="pt-6 border-t border-gray-100 mt-4">

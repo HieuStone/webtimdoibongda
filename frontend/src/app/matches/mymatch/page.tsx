@@ -18,6 +18,7 @@ interface Match {
   skillRequirement: number;
   paymentType: string;
   status: string;
+  isAutoMatch: boolean;
 }
 
 interface MatchRequest {
@@ -123,6 +124,23 @@ export default function MyMatchPage() {
       fetchMyData();
     } catch (error: any) {
       alert(error.response?.data?.message || "Lỗi khi hủy kèo");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleToggleAutoMatch = async (matchId: number, isEnabled: boolean) => {
+    setActionLoading(`autoMatch-${matchId}`);
+    try {
+      const res = await api.post(`/match/${matchId}/auto-match`, { isEnabled });
+      if (res.data.matched) {
+         alert("🎉 " + res.data.message);
+      } else {
+         alert("✅ " + res.data.message);
+      }
+      fetchMyData();
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Lỗi khi đổi trạng thái bắt kèo tự động");
     } finally {
       setActionLoading(null);
     }
@@ -281,6 +299,25 @@ export default function MyMatchPage() {
                           Hủy Kèo
                         </button>
                       </div>
+                      
+                      {match.status === 'finding' && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <button
+                            onClick={() => handleToggleAutoMatch(match.id, !match.isAutoMatch)}
+                            className={`w-full py-2.5 rounded-xl font-bold flex justify-center items-center gap-2 transition-all shadow-sm ${
+                              match.isAutoMatch 
+                                ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100' 
+                                : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            {actionLoading === `autoMatch-${match.id}` ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                            ) : (
+                              match.isAutoMatch ? '⚡ ĐANG BẬT AUTO-MATCH CỦA HỆ THỐNG' : 'Tự ghép tự động đang Tắt'
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

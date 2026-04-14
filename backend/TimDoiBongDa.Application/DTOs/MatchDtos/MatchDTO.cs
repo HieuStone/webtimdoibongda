@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace TimDoiBongDa.Application.DTOs.MatchDtos;
 
@@ -15,6 +15,8 @@ public class CreateMatchRequest
     public DateTime MatchTime { get; set; }
 
     public int MatchType { get; set; } = 7;
+    public bool IsHomeMatch { get; set; } = true;
+    public bool IsAutoMatch { get; set; } = false;
     public int SkillRequirement { get; set; } = 3;
     public string PaymentType { get; set; } = "50-50";
     public string? Note { get; set; }
@@ -29,6 +31,8 @@ public class MatchResponse
     public string? StadiumName { get; set; }
     public DateTime MatchTime { get; set; }
     public int MatchType { get; set; }
+    public bool IsHomeMatch { get; set; }
+    public bool IsAutoMatch { get; set; }
     public int SkillRequirement { get; set; }
     public string PaymentType { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
@@ -36,4 +40,9 @@ public class MatchResponse
     public int? CreatorScore { get; set; }
     public int? OpponentScore { get; set; }
     public long? OpponentTeamId { get; set; }
+}
+
+public class ToggleAutoMatchDto
+{
+    public bool IsEnabled { get; set; }
 }
