@@ -37,6 +37,14 @@ namespace TimDoiBongDa.Application.DTOs.MatchDtos
                 predicates.Add(x => x.IsHomeMatch == IsHomeMatch.Value);
             }
 
+            if (!string.IsNullOrEmpty(SearchTerm))
+            {
+                var term = SearchTerm.ToLower();
+                predicates.Add(x => (x.StadiumName != null && x.StadiumName.ToLower().Contains(term)) 
+                                 || (x.CreatorTeamName != null && x.CreatorTeamName.ToLower().Contains(term))
+                                 || (x.OpponentTeamName != null && x.OpponentTeamName.ToLower().Contains(term)));
+            }
+
             return predicates;
         }
     }

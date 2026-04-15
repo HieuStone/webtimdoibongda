@@ -52,22 +52,15 @@ public class MatchController : ControllerBase
             myTeamIds = await _baseServices.GetManagedTeamIdsAsync(currentUserId.Value);
         }
 
-        var matches = await _matchRepo.GetAvailableMatchesAsync(myTeamIds, filter);
-
-        var response = matches.Select(m => new MatchResponse
+        var predicates = new List<Expression<Func<MatchResponse, bool>>>();
+        predicates.Add(m => (m.Status == "finding" || m.Status == "waiting_approval") && m.MatchTime >= DateTime.Now);
+        
+        if (myTeamIds.Any())
         {
-            Id = m.Id,
-            CreatorTeamId = m.CreatorTeamId,
-            CreatorTeamName = m.CreatorTeam != null ? m.CreatorTeam.Name : "N/A",
-            OpponentTeamName = m.OpponentTeam != null ? m.OpponentTeam.Name : null,
-            StadiumName = m.StadiumName,
-            MatchTime = m.MatchTime,
-            MatchType = m.MatchType,
-            SkillRequirement = m.SkillRequirement,
-            PaymentType = m.PaymentType,
-            Status = m.Status,
-            Note = m.Note
-        });
+            predicates.Add(m => !myTeamIds.Contains(m.CreatorTeamId));
+        }
+
+        var response = await _baseServices.DataFilterAsync<Match, MatchResponse>(filter, predicates.ToArray());
 
         return Ok(response);
     }
@@ -521,23 +514,10 @@ public class MatchController : ControllerBase
 
         var myTeamIds = await _baseServices.GetManagedTeamIdsAsync(userId.Value);
 
-        var matches = await _matchRepo.GetMyCreatedMatchesAsync(myTeamIds, filter);
+        var predicates = new List<Expression<Func<MatchResponse, bool>>>();
+        predicates.Add(m => myTeamIds.Contains(m.CreatorTeamId) && (m.Status == "finding" || m.Status == "waiting_approval" || m.Status == "scheduled"));
 
-        var response = matches.Select(m => new MatchResponse
-        {
-            Id = m.Id,
-            CreatorTeamId = m.CreatorTeamId,
-            CreatorTeamName = m.CreatorTeam != null ? m.CreatorTeam.Name : "N/A",
-            OpponentTeamId = m.OpponentTeamId,
-            OpponentTeamName = m.OpponentTeam != null ? m.OpponentTeam.Name : null,
-            StadiumName = m.StadiumName,
-            MatchTime = m.MatchTime,
-            MatchType = m.MatchType,
-            SkillRequirement = m.SkillRequirement,
-            PaymentType = m.PaymentType,
-            Status = m.Status,
-            Note = m.Note
-        });
+        var response = await _baseServices.DataFilterAsync<Match, MatchResponse>(filter, predicates.ToArray());
 
         return Ok(response);
     }

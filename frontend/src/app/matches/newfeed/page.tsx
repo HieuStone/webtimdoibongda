@@ -5,6 +5,7 @@ import { MapPin, Search, Calendar, PlayCircle, Filter, Loader2, Undo2, XCircle, 
 import api from '@/lib/api';
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { LevelTeam } from '@/app/teams/_variables/LevelTeam';
 
 interface Match {
   id: number;
@@ -21,11 +22,11 @@ interface Match {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  finding:          { label: 'Đang tìm đối', color: 'bg-blue-100 text-blue-700 border-blue-200',    icon: <PlayCircle className="w-3 h-3" /> },
-  waiting_approval: { label: 'Chờ duyệt',    color: 'bg-orange-100 text-orange-700 border-orange-200', icon: <PlayCircle className="w-3 h-3" /> },
-  scheduled:        { label: 'Đã lên lịch',  color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle className="w-3 h-3" /> },
-  finished:         { label: 'Kết thúc',     color: 'bg-gray-100 text-gray-600 border-gray-200',    icon: <CheckCircle className="w-3 h-3" /> },
-  cancelled:        { label: 'Đã hủy',       color: 'bg-red-100 text-red-600 border-red-200',       icon: <XCircle className="w-3 h-3" /> },
+  finding: { label: 'Đang tìm đối', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: <PlayCircle className="w-3 h-3" /> },
+  waiting_approval: { label: 'Chờ duyệt', color: 'bg-orange-100 text-orange-700 border-orange-200', icon: <PlayCircle className="w-3 h-3" /> },
+  scheduled: { label: 'Đã lên lịch', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle className="w-3 h-3" /> },
+  finished: { label: 'Kết thúc', color: 'bg-gray-100 text-gray-600 border-gray-200', icon: <CheckCircle className="w-3 h-3" /> },
+  cancelled: { label: 'Đã hủy', color: 'bg-red-100 text-red-600 border-red-200', icon: <XCircle className="w-3 h-3" /> },
 };
 
 export default function NewfeedPage() {
@@ -85,18 +86,18 @@ export default function NewfeedPage() {
       alert("Vui lòng đăng nhập để nhận kèo!");
       return;
     }
-    
+
     setSelectingMatchId(matchId);
     setLoadingTeams(true);
     try {
       const response = await api.get(`/match/my-available-teams?date=${matchTime}`);
       const teams = response.data;
-      
+
       if (teams.length === 0) {
         alert("Bạn không có đội nào sẵn sàng (chưa có đội hoặc đã có kèo khác) vào ngày này!");
         return;
       }
-      
+
       if (teams.length === 1) {
         if (confirm(`Sử dụng đội "${teams[0].name}" để nhận kèo này?`)) {
           await submitRequestJoin(matchId, teams[0].id);
@@ -127,20 +128,13 @@ export default function NewfeedPage() {
   };
 
   const formatSkill = (skill: number) => {
-    switch (skill) {
-      case 1: return 'Kém';
-      case 2: return 'Yếu';
-      case 3: return 'Trung Bình';
-      case 4: return 'Khá';
-      case 5: return 'Bán chuyên';
-      default: return 'Chưa rõ';
-    }
+    return LevelTeam.find(l => l.value === skill)?.label || 'Chưa rõ';
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
+
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -156,15 +150,15 @@ export default function NewfeedPage() {
           <div className="mt-8 flex items-center gap-4 overflow-x-auto pb-2">
             <div className="relative flex-1 min-w-[250px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input 
-                type="text" 
-                placeholder="Tìm theo tên sân, quận huyện..." 
+              <input
+                type="text"
+                placeholder="Tìm theo tên sân, quận huyện..."
                 className="w-full pl-10 pr-4 py-3 bg-gray-100 border-none rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <button 
+            <button
               onClick={() => setShowAdvancedFilter(!showAdvancedFilter)}
               className={`px-4 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${showAdvancedFilter ? 'bg-green-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
@@ -178,8 +172,8 @@ export default function NewfeedPage() {
                 <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-green-600" /> Chốt Ngày
                 </label>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
                   value={filterDate}
                   onChange={(e) => setFilterDate(e.target.value)}
@@ -190,7 +184,7 @@ export default function NewfeedPage() {
                 <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
                   🛡️ Câu Lạc Bộ
                 </label>
-                <select 
+                <select
                   className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none appearance-none"
                   value={filterTeamId}
                   onChange={(e) => setFilterTeamId(e.target.value)}
@@ -203,7 +197,7 @@ export default function NewfeedPage() {
               </div>
 
               <div className="flex items-end">
-                <button 
+                <button
                   onClick={() => {
                     setFilterDate('');
                     setFilterTeamId('');
@@ -248,62 +242,62 @@ export default function NewfeedPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {matches
-              .filter(m => 
-                m.stadiumName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+              .filter(m =>
+                m.stadiumName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 m.creatorTeamName.toLowerCase().includes(searchTerm.toLowerCase())
               )
               .map((match) => (
-              <div key={match.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-transform hover:-translate-y-1 duration-300">
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-xl">🛡️</div>
-                      <div>
-                        <h3 className="font-bold text-lg text-gray-900 truncate w-32 md:w-40">{match.creatorTeamName}</h3>
-                        <p className="text-sm text-green-600 font-medium">Trình độ: {formatSkill(match.skillRequirement)}</p>
+                <div key={match.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-transform hover:-translate-y-1 duration-300">
+                  <div className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-xl">🛡️</div>
+                        <div>
+                          <h3 className="font-bold text-lg text-gray-900 truncate w-32 md:w-40">{match.creatorTeamName}</h3>
+                          <p className="text-sm text-green-600 font-medium">Trình độ: {formatSkill(match.skillRequirement)}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg border border-gray-200">Sân {match.matchType}</span>
+                        <span className={`px-2.5 py-1 text-xs font-bold rounded-lg border ${match.isHomeMatch ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                          {match.isHomeMatch ? '⚽ Có Sân Nhà' : '✈️ Cần Đi Khách'}
+                        </span>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                       <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg border border-gray-200">Sân {match.matchType}</span>
-                       <span className={`px-2.5 py-1 text-xs font-bold rounded-lg border ${match.isHomeMatch ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
-                         {match.isHomeMatch ? '⚽ Có Sân Nhà' : '✈️ Cần Đi Khách'}
-                       </span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 mt-4 mb-6">
-                    <div className="flex items-center gap-2 text-gray-600 text-sm">
-                      <MapPin className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium truncate">{match.stadiumName || 'Chưa chốt sân'}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600 text-sm">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium text-red-600">{new Date(match.matchTime).toLocaleString('vi-VN')}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600 text-sm">
-                      <span className="w-4 h-4 flex justify-center items-center font-bold text-gray-400">💰</span>
-                      {match.paymentType}
-                    </div>
-                  </div>
 
-                  <div className="pt-4 border-t border-gray-100 flex gap-3">
-                    <button 
-                      onClick={() => handleRequestJoin(match.id, match.matchTime)}
-                      disabled={actionLoading === match.id || loadingTeams || match.status === 'scheduled'}
-                      className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-70 flex justify-center items-center"
-                    >
-                      {actionLoading === match.id ? <Loader2 className="w-5 h-5 animate-spin" /> : (match.status === 'scheduled' ? 'Đã Chốt' : 'Nhận Kèo')}
-                    </button>
-                    <Link 
-                      href={`/matches/${match.id}`}
-                      className="flex-1 flex justify-center items-center py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm transition-colors"
-                    >
-                      Chi Tiết
-                    </Link>
+                    <div className="space-y-2 mt-4 mb-6">
+                      <div className="flex items-center gap-2 text-gray-600 text-sm">
+                        <MapPin className="w-4 h-4 text-gray-400" />
+                        <span className="font-medium truncate">{match.stadiumName || 'Chưa chốt sân'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-600 text-sm">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <span className="font-medium text-red-600">{new Date(match.matchTime).toLocaleString('vi-VN')}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-600 text-sm">
+                        <span className="w-4 h-4 flex justify-center items-center font-bold text-gray-400">💰</span>
+                        {match.paymentType}
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-100 flex gap-3">
+                      <button
+                        onClick={() => handleRequestJoin(match.id, match.matchTime)}
+                        disabled={actionLoading === match.id || loadingTeams || match.status === 'scheduled'}
+                        className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-70 flex justify-center items-center"
+                      >
+                        {actionLoading === match.id ? <Loader2 className="w-5 h-5 animate-spin" /> : (match.status === 'scheduled' ? 'Đã Chốt' : 'Nhận Kèo')}
+                      </button>
+                      <Link
+                        href={`/matches/${match.id}`}
+                        className="flex-1 flex justify-center items-center py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm transition-colors"
+                      >
+                        Chi Tiết
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </main>
@@ -323,8 +317,8 @@ export default function NewfeedPage() {
                   onClick={() => submitRequestJoin(selectingMatchId!, team.id)}
                   className="w-full p-4 border-2 border-gray-100 rounded-2xl flex items-center justify-between hover:border-green-500 hover:bg-green-50 transition-all"
                 >
-                   <div className="font-bold">{team.name}</div>
-                   <div className="text-xs text-gray-500">Trình: {formatSkill(team.skillLevel)}</div>
+                  <div className="font-bold">{team.name}</div>
+                  <div className="text-xs text-gray-500">Trình: {formatSkill(team.skillLevel)}</div>
                 </button>
               ))}
             </div>

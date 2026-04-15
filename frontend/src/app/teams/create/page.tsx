@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import { Shield, MapPin, Trophy, ArrowLeft, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 import Link from 'next/link';
+import { LevelTeam } from '@/app/teams/_variables/LevelTeam';
 
 interface Area {
   id: number;
@@ -156,20 +157,14 @@ export default function CreateTeamPage() {
                 <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
                   <Trophy className="w-4 h-4 text-orange-500" /> Đánh giá trình độ chung
                 </label>
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-1 grid grid-cols-5 gap-1">
-                  {[
-                    { val: 1, label: 'Kém' },
-                    { val: 2, label: 'Yếu' },
-                    { val: 3, label: 'Trung Bình' },
-                    { val: 4, label: 'Khá' },
-                    { val: 5, label: 'Chuyên' }
-                  ].map((level) => (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-1 grid grid-cols-2 shadow-sm sm:grid-cols-3 md:grid-cols-6 gap-1 border-t-0">
+                  {LevelTeam.map((level) => (
                     <button
-                      key={level.val}
+                      key={level.value}
                       type="button"
-                      onClick={() => setFormData({ ...formData, skillLevel: level.val })}
+                      onClick={() => setFormData({ ...formData, skillLevel: level.value })}
                       className={`py-3 text-sm font-bold rounded-lg transition-all ${
-                        formData.skillLevel === level.val 
+                        formData.skillLevel === level.value 
                           ? 'bg-blue-600 text-white shadow-md transform scale-[1.02]' 
                           : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
                       }`}

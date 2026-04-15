@@ -5,6 +5,7 @@ import { Users, Search, Plus, MapPin, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { LevelTeam } from '@/app/teams/_variables/LevelTeam';
 
 interface Team {
   id: number;
@@ -72,8 +73,7 @@ export default function TeamsPage() {
   }, [user]);
 
   const formatSkill = (skill: number) => {
-    const skills = ['Kém', 'Yếu', 'Trung Bình', 'Khá', 'Bán chuyên'];
-    return skills[skill - 1] || 'Không rõ';
+    return LevelTeam.find(t => t.value === skill)?.label || 'Không rõ';
   };
 
   return (
