@@ -194,6 +194,11 @@ namespace TimDoiBongDa.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
+                    b.Property<DateTime?>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp(6)");
+
                     b.Property<int>("SkillRequirement")
                         .HasColumnType("int");
 
@@ -201,10 +206,8 @@ namespace TimDoiBongDa.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)");
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -234,8 +237,8 @@ namespace TimDoiBongDa.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<int>("FairplayRating")
-                        .HasColumnType("int");
+                    b.Property<double>("FairplayRating")
+                        .HasColumnType("double");
 
                     b.Property<bool>("IsBomKeo")
                         .HasColumnType("tinyint(1)");
@@ -389,6 +392,9 @@ namespace TimDoiBongDa.Infrastructure.Migrations
                     b.Property<int?>("AreaId")
                         .HasColumnType("int");
 
+                    b.Property<double?>("AverageFairplayScore")
+                        .HasColumnType("double");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -448,10 +454,8 @@ namespace TimDoiBongDa.Infrastructure.Migrations
                     b.Property<long>("TeamId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("TeamRole")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)");
+                    b.Property<int>("TeamRole")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");

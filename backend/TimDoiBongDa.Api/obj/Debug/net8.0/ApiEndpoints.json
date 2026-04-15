@@ -288,6 +288,27 @@
   },
   {
     "ContainingType": "TimDoiBongDa.Api.Controllers.MatchController",
+    "Method": "RateOpponent",
+    "RelativePath": "api/Match/{id}/rate",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int64",
+        "IsRequired": true
+      },
+      {
+        "Name": "req",
+        "Type": "TimDoiBongDa.Api.Controllers.MatchController\u002BRateOpponentRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "TimDoiBongDa.Api.Controllers.MatchController",
     "Method": "RejectMatchRequest",
     "RelativePath": "api/Match/{id}/reject/{requestId}",
     "HttpMethod": "POST",

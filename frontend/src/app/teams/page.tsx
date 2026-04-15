@@ -6,14 +6,16 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { LevelTeam } from '@/app/teams/_variables/LevelTeam';
+import { getFairplayRankLabel } from '@/app/teams/_variables/FairplayRank';
 
 interface Team {
   id: number;
   name: string;
   shortName: string | null;
   skillLevel: number;
-  managerName: string;
   managerId: number;
+  managerName: string;
+  averageFairplayScore?: number | null;
 }
 
 export default function TeamsPage() {
@@ -139,7 +141,11 @@ export default function TeamsPage() {
                         </div>
                         <div className="bg-white/60 rounded-lg p-2">
                           <div className="text-xs font-medium mb-1">Fair-play</div>
-                          <div className="text-sm font-bold">★ TBD</div>
+                          <div className="text-sm font-bold truncate">
+                            {team.averageFairplayScore != null 
+                              ? `★ ${team.averageFairplayScore} (${getFairplayRankLabel(team.averageFairplayScore)})` 
+                              : "★ Chưa có"}
+                          </div>
                         </div>
                       </div>
 

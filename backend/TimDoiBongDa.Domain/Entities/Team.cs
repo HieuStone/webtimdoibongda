@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TimDoiBongDa.Domain.Entities;
@@ -29,6 +29,8 @@ public class Team
     public long? HomeStadiumId { get; set; }
 
     public int SkillLevel { get; set; } = 3; // 1: Kém, 2: TB-Yếu, 3: TB, 4: Khá, 5: Bán chuyên
+    
+    public double? AverageFairplayScore { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

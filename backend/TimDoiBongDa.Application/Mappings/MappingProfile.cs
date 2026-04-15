@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using TimDoiBongDa.Domain.Entities;
 using TimDoiBongDa.Application.DTOs.MatchDtos;
 using TimDoiBongDa.Application.DTOs.TeamDtos;
@@ -11,7 +11,8 @@ namespace TimDoiBongDa.Application.Mappings
         {
             CreateMap<Match, MatchResponse>()
                 .ForMember(dest => dest.CreatorTeamName, opt => opt.MapAtRuntime()) // These are often handled by Include or specific logic
-                .ForMember(dest => dest.OpponentTeamName, opt => opt.MapAtRuntime());
+                .ForMember(dest => dest.OpponentTeamName, opt => opt.MapAtRuntime())
+                .ForMember(dest => dest.CreatorFairplayScore, opt => opt.MapFrom(src => src.CreatorTeam != null ? src.CreatorTeam.AverageFairplayScore : null));
 
             // Add other maps as needed
             CreateMap<Team, TeamResponse>();

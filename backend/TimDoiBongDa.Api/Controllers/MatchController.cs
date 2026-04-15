@@ -3,12 +3,14 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 using TimDoiBongDa.Application.Interfaces;
 using TimDoiBongDa.Application.DTOs;
 using TimDoiBongDa.Application.DTOs.MatchDtos;
-using TimDoiBongDa.Application.Interfaces;
 using TimDoiBongDa.Domain.Entities;
+using TimDoiBongDa.Domain.Enums;
 using TimDoiBongDa.Application.Interfaces.Repositories;
+using TimDoiBongDa.Api.Hubs;
 
 namespace TimDoiBongDa.Api.Controllers;
 
@@ -19,24 +21,30 @@ public class MatchController : ControllerBase
     private readonly IMatchRepository _matchRepo;
     private readonly IMatchRequestRepository _matchRequestRepo;
     private readonly ITeamRepository _teamRepo;
+    private readonly ITeamUserRepository _teamUserRepo;
     private readonly IGenericRepository<Notification> _notificationRepo;
     private readonly IGenericRepository<MatchRating> _ratingRepo;
     private readonly IBaseServices _baseServices;
+    private readonly IHubContext<NotificationHub> _hubContext;
 
     public MatchController(
         IMatchRepository matchRepo,
         IMatchRequestRepository matchRequestRepo,
         ITeamRepository teamRepo,
+        ITeamUserRepository teamUserRepo,
         IGenericRepository<Notification> notificationRepo,
         IGenericRepository<MatchRating> ratingRepo,
-        IBaseServices baseServices)
+        IBaseServices baseServices,
+        IHubContext<NotificationHub> hubContext)
     {
         _matchRepo = matchRepo;
         _matchRequestRepo = matchRequestRepo;
         _teamRepo = teamRepo;
+        _teamUserRepo = teamUserRepo;
         _notificationRepo = notificationRepo;
         _ratingRepo = ratingRepo;
         _baseServices = baseServices;
+        _hubContext = hubContext;
     }
 
     [HttpGet]
@@ -53,7 +61,7 @@ public class MatchController : ControllerBase
         }
 
         var predicates = new List<Expression<Func<MatchResponse, bool>>>();
-        predicates.Add(m => (m.Status == "finding" || m.Status == "waiting_approval") && m.MatchTime >= DateTime.Now);
+        predicates.Add(m => (m.Status == MatchStatus.Finding || m.Status == MatchStatus.WaitingApproval) && m.MatchTime >= DateTime.Now);
         
         if (myTeamIds.Any())
         {
@@ -73,10 +81,32 @@ public class MatchController : ControllerBase
         if (userId == null)
             return Unauthorized();
 
-        // Chỉ cho phép Đội trưởng (Manager) của đội mới có quyền Cáp Kèo
-        var team = await _teamRepo.Find(t => t.Id == request.CreatorTeamId && t.ManagerId == userId).FirstOrDefaultAsync();
+        // Kiểm tra quyền: Phải là Captain (Manager) hoặc ViceCaptain của đội
+        var team = await _teamRepo.GetByIdAsync(request.CreatorTeamId);
         if (team == null)
-            return Forbid(); // Trả về 403 Forbidden nếu không đủ thẩm quyền thay mặt đội.
+            return NotFound(new { message = "Đội bóng không tồn tại." });
+
+        bool isCaptain = team.ManagerId == userId;
+        bool isViceCaptain = !isCaptain && await _teamUserRepo.Find(tu =>
+            tu.TeamId == request.CreatorTeamId &&
+            tu.UserId == userId &&
+            tu.Status == "approved" &&
+            tu.TeamRole == TimDoiBongDa.Domain.Enums.TeamRole.ViceCaptain
+        ).AnyAsync();
+
+        if (!isCaptain && !isViceCaptain)
+            return StatusCode(403, new { message = "Chỉ Đội trưởng hoặc Đội phó mới được đăng kèo." });
+
+        // Kiểm tra 1 kèo/ngày
+        var matchDate = request.MatchTime.Date;
+        var existingMatch = await _matchRepo.Find(m =>
+            m.CreatorTeamId == request.CreatorTeamId &&
+            m.MatchTime.Date == matchDate &&
+            (m.Status == MatchStatus.Finding || m.Status == MatchStatus.WaitingApproval || m.Status == MatchStatus.Scheduled)
+        ).FirstOrDefaultAsync();
+
+        if (existingMatch != null)
+            return BadRequest(new { message = $"Đội bạn đã có kèo vào ngày này (ID: {existingMatch.Id}). Hãy hủy kèo cũ trước khi đăng kèo mới cùng ngày." });
 
         var newMatch = new Match
         {
@@ -89,7 +119,7 @@ public class MatchController : ControllerBase
             IsAutoMatch = request.IsAutoMatch,
             SkillRequirement = request.SkillRequirement,
             PaymentType = request.PaymentType,
-            Status = "finding",
+            Status = MatchStatus.Finding,
             Note = request.Note
         };
 
@@ -101,6 +131,7 @@ public class MatchController : ControllerBase
             await TryAutoMatchAsync(newMatch.Id);
         }
 
+        await _hubContext.Clients.Group("MatchFeed").SendAsync("MatchListUpdated");
         return CreatedAtAction(nameof(GetAvailableMatches), new { id = newMatch.Id }, new { message = "Tìm đối thành công! Trận đấu đã được đăng lên sảnh.", matchId = newMatch.Id });
     }
     
@@ -118,7 +149,7 @@ public class MatchController : ControllerBase
             return Forbid();
 
         var match = await _matchRepo.GetByIdAsync(id);
-        if (match == null || match.Status != "finding")
+        if (match == null || match.Status != MatchStatus.Finding)
             return BadRequest(new { message = "Kèo này không còn ở trạng thái tìm đối nữa." });
 
         // Kiểm tra: Đội đã có kèo được chốt (là creator hoặc opponent) trong ngày đó chưa?
@@ -127,7 +158,7 @@ public class MatchController : ControllerBase
             .ExistsAsync(m => (m.CreatorTeamId == requestingTeamId || m.OpponentTeamId == requestingTeamId)
                         && m.MatchTime.Date == matchDate
                         && m.Id != id
-                        && m.Status != "cancelled");
+                        && m.Status != MatchStatus.Cancelled);
 
         // Kiểm tra: Đội đang có request PENDING cho một kèo KHÁC cùng ngày không?
         var pendingMatchIds = await _matchRequestRepo.Find(r => r.RequestingTeamId == requestingTeamId && r.Status == "pending" && r.MatchId != id)
@@ -194,7 +225,7 @@ public class MatchController : ControllerBase
             .ToListAsync();
 
         // Lấy các đội đã có kèo được chốt (creator hoặc opponent) trong ngày đó
-        var busyTeamIds = await _matchRepo.Find(m => m.MatchTime.Date == targetDate && m.Status != "cancelled")
+        var busyTeamIds = await _matchRepo.Find(m => m.MatchTime.Date == targetDate && m.Status != MatchStatus.Cancelled)
             .Select(m => new[] { m.CreatorTeamId, m.OpponentTeamId ?? 0 })
             .ToListAsync();
 
@@ -223,7 +254,7 @@ public class MatchController : ControllerBase
             MatchType = match.MatchType,
             SkillRequirement = match.SkillRequirement,
             PaymentType = match.PaymentType ?? "",
-            Status = match.Status ?? "",
+            Status = match.Status,
             Note = match.Note
         });
     }
@@ -238,16 +269,6 @@ public class MatchController : ControllerBase
             { 1, "Kém" }, { 2, "Yếu" }, { 3, "Trung Bình" }, { 4, "Khá" }, { 5, "Bán Chuyên" }
         };
 
-        var teamIds = requests.Select(r => r.RequestingTeamId).Distinct().ToList();
-
-        // Tính điểm Fairplay Trung Bình cho từng đội
-        var avgRatings = await _ratingRepo.Find(mr => teamIds.Contains(mr.TargetTeamId))
-            .GroupBy(mr => mr.TargetTeamId)
-            .Select(g => new { TeamId = g.Key, AvgRating = g.Average(x => x.FairplayRating) })
-            .ToListAsync();
-
-        var ratingDict = avgRatings.ToDictionary(x => x.TeamId, x => Math.Round(x.AvgRating, 1));
-
         var result = requests.Select(r => new
         {
             Id = r.Id,
@@ -256,7 +277,7 @@ public class MatchController : ControllerBase
             SkillLevel = r.RequestingTeam != null ? r.RequestingTeam.SkillLevel : 0,
             SkillLevelText = r.RequestingTeam != null && skillLabels.ContainsKey(r.RequestingTeam.SkillLevel)
                 ? skillLabels[r.RequestingTeam.SkillLevel] : "Chưa rõ",
-            AvgRating = ratingDict.ContainsKey(r.RequestingTeamId) ? ratingDict[r.RequestingTeamId] : (double?)null,
+            AvgRating = r.RequestingTeam?.AverageFairplayScore.HasValue == true ? Math.Round(r.RequestingTeam.AverageFairplayScore.Value, 1) : (double?)null,
             Status = r.Status,
             Message = r.Message
         });
@@ -301,7 +322,7 @@ public class MatchController : ControllerBase
         var stillPending = await _matchRequestRepo.ExistsAsync(r => r.MatchId == id && r.Id != requestId && r.Status == "pending");
         if (!stillPending)
         {
-            match.Status = "finding";
+            match.Status = MatchStatus.Finding;
             _matchRepo.Update(match);
         }
 
@@ -323,7 +344,7 @@ public class MatchController : ControllerBase
         if (match.CreatorTeam == null || match.CreatorTeam.ManagerId != userId)
             return Forbid();
 
-        if (match.Status != "finding" && match.Status != "waiting_approval")
+        if (match.Status != MatchStatus.Finding && match.Status != MatchStatus.WaitingApproval)
             return BadRequest(new { message = "Kèo này đã chốt đối thủ hoặc đã hủy." });
 
         var request = await _matchRequestRepo.Find(r => r.Id == requestId && r.MatchId == id).FirstOrDefaultAsync();
@@ -334,7 +355,7 @@ public class MatchController : ControllerBase
         // Phê duyệt yêu cầu này thành đối thủ
         request.Status = "approved";
         match.OpponentTeamId = request.RequestingTeamId;
-        match.Status = "scheduled";
+        match.Status = MatchStatus.Scheduled;
 
         _matchRequestRepo.Update(request);
         _matchRepo.Update(match);
@@ -395,8 +416,17 @@ public class MatchController : ControllerBase
             }
         }
 
-        await _matchRequestRepo.SaveAsync();
-        await _matchRepo.SaveAsync();
+        try
+        {
+            await _matchRequestRepo.SaveAsync();
+            await _matchRepo.SaveAsync();
+            await _hubContext.Clients.Group("MatchFeed").SendAsync("MatchListUpdated");
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict(new { message = "Kèo này vừa được chốt cách đây vài giây bởi một hành động khác! Thông tin đã cũ, mời bạn tải lại trang." });
+        }
+        
         return Ok(new { message = "Chốt kèo thành công! Trận đấu đã được ấn định đối thủ." });
     }
 
@@ -413,7 +443,7 @@ public class MatchController : ControllerBase
         if (match.CreatorTeam == null || match.CreatorTeam.ManagerId != userId)
             return Forbid();
 
-        if (match.Status != "scheduled")
+        if (match.Status != MatchStatus.Scheduled)
             return BadRequest(new { message = "Kèo này chưa chốt đối thủ nên không thể hủy." });
 
         var approvedRequest = await _matchRequestRepo.Find(r => r.MatchId == id && r.Status == "approved").FirstOrDefaultAsync();
@@ -437,14 +467,16 @@ public class MatchController : ControllerBase
                     ActionLink = $"/matches/{match.Id}"
                 });
                 await _notificationRepo.SaveAsync();
+                await _hubContext.Clients.Group($"User_{opponentTeam.ManagerId}").SendAsync("ReceiveNotification");
             }
         }
 
         match.OpponentTeamId = null;
-        match.Status = "finding";
+        match.Status = MatchStatus.Finding;
         _matchRepo.Update(match);
 
         await _matchRepo.SaveAsync();
+        await _hubContext.Clients.Group("MatchFeed").SendAsync("MatchListUpdated");
         return Ok(new { message = "Đã hủy kèo thành công. Trận đấu quay lại trạng thái tìm đối." });
     }
 
@@ -495,11 +527,67 @@ public class MatchController : ControllerBase
 
         match.CreatorScore = req.CreatorScore;
         match.OpponentScore = req.OpponentScore;
-        match.Status = "finished";
+        match.Status = MatchStatus.Finished;
         _matchRepo.Update(match);
         await _matchRepo.SaveAsync();
 
         return Ok(new { message = "Lưu tỷ số trận đấu thành công!" });
+    }
+
+    public class RateOpponentRequest
+    {
+        public double FairplayRating { get; set; }
+        public string? Comment { get; set; }
+    }
+
+    [Authorize]
+    [HttpPost("{id}/rate")]
+    public async Task<IActionResult> RateOpponent(long id, [FromBody] RateOpponentRequest req)
+    {
+        var userId = _baseServices.GetCurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        var match = await _matchRepo.Find(m => m.Id == id).Include(m => m.CreatorTeam).Include(m => m.OpponentTeam).FirstOrDefaultAsync();
+        if (match == null) return NotFound(new { message = "Kèo không tồn tại." });
+        if (match.Status != MatchStatus.Finished) return BadRequest(new { message = "Kèo chưa kết thúc, không thể đánh giá." });
+
+        if (req.FairplayRating < 0 || req.FairplayRating > 10) return BadRequest(new { message = "Điểm phải từ 0 đến 10." });
+
+        bool isCreator = match.CreatorTeam?.ManagerId == userId;
+        bool isOpponent = match.OpponentTeam?.ManagerId == userId;
+
+        if (!isCreator && !isOpponent) return Forbid();
+
+        long myTeamId = isCreator ? match.CreatorTeamId : match.OpponentTeamId!.Value;
+        long targetTeamId = isCreator ? match.OpponentTeamId!.Value : match.CreatorTeamId;
+
+        bool hasRated = await _ratingRepo.ExistsAsync(r => r.MatchId == id && r.ReviewerTeamId == myTeamId);
+        if (hasRated) return BadRequest(new { message = "Đội của bạn đã đánh giá đối thủ trận này rồi." });
+
+        var rating = new MatchRating
+        {
+            MatchId = id,
+            ReviewerTeamId = myTeamId,
+            TargetTeamId = targetTeamId,
+            FairplayRating = req.FairplayRating,
+            Comment = req.Comment
+        };
+
+        await _ratingRepo.AddAsync(rating);
+
+        var targetTeam = await _teamRepo.GetByIdAsync(targetTeamId);
+        if (targetTeam != null)
+        {
+            var oldRatings = await _ratingRepo.Find(r => r.TargetTeamId == targetTeamId).Select(r => r.FairplayRating).ToListAsync();
+            oldRatings.Add(req.FairplayRating);
+            targetTeam.AverageFairplayScore = Math.Round(oldRatings.Average(), 1);
+            _teamRepo.Update(targetTeam);
+        }
+
+        await _ratingRepo.SaveAsync();
+        await _teamRepo.SaveAsync();
+
+        return Ok(new { message = "Đánh giá thành công!" });
     }
 
     /// <summary>
@@ -515,7 +603,7 @@ public class MatchController : ControllerBase
         var myTeamIds = await _baseServices.GetManagedTeamIdsAsync(userId.Value);
 
         var predicates = new List<Expression<Func<MatchResponse, bool>>>();
-        predicates.Add(m => myTeamIds.Contains(m.CreatorTeamId) && (m.Status == "finding" || m.Status == "waiting_approval" || m.Status == "scheduled"));
+        predicates.Add(m => myTeamIds.Contains(m.CreatorTeamId) && (m.Status == MatchStatus.Finding || m.Status == MatchStatus.WaitingApproval || m.Status == MatchStatus.Scheduled));
 
         var response = await _baseServices.DataFilterAsync<Match, MatchResponse>(filter, predicates.ToArray());
 
@@ -549,7 +637,7 @@ public class MatchController : ControllerBase
             MatchStadiumName = r.Match != null ? r.Match.StadiumName : null,
             MatchTime = r.Match != null ? r.Match.MatchTime : DateTime.MinValue,
             MatchType = r.Match != null ? r.Match.MatchType : 0,
-            MatchStatus = r.Match != null ? r.Match.Status : "",
+            MatchStatus = r.Match != null ? r.Match.Status.ToString() : "",
             CreatorTeamName = r.Match != null && r.Match.CreatorTeam != null ? r.Match.CreatorTeam.Name : "N/A",
             r.CreatedAt
         });
@@ -573,10 +661,10 @@ public class MatchController : ControllerBase
         if (match.CreatorTeam == null || match.CreatorTeam.ManagerId != userId)
             return Forbid();
 
-        if (match.Status == "finished")
+        if (match.Status == MatchStatus.Finished)
             return BadRequest(new { message = "Không thể hủy kèo đã kết thúc." });
 
-        if (match.Status == "cancelled")
+        if (match.Status == MatchStatus.Cancelled)
             return BadRequest(new { message = "Kèo này đã bị hủy trước đó." });
 
         // Reject tất cả pending requests và gửi thông báo
@@ -614,13 +702,24 @@ public class MatchController : ControllerBase
             }
         }
 
-        match.Status = "cancelled";
+        match.Status = MatchStatus.Cancelled;
         match.OpponentTeamId = null;
         _matchRepo.Update(match);
 
         await _matchRequestRepo.SaveAsync();
         await _notificationRepo.SaveAsync();
+        
+        if (match.OpponentTeamId.HasValue)
+        {
+            var opponentTeam = await _teamRepo.GetByIdAsync(match.OpponentTeamId.Value);
+            if (opponentTeam != null && opponentTeam.ManagerId > 0)
+            {
+               await _hubContext.Clients.Group($"User_{opponentTeam.ManagerId}").SendAsync("ReceiveNotification");
+            }
+        }
+
         await _matchRepo.SaveAsync();
+        await _hubContext.Clients.Group("MatchFeed").SendAsync("MatchListUpdated");
 
         return Ok(new { message = "Đã hủy kèo thành công!" });
     }
@@ -664,7 +763,7 @@ public class MatchController : ControllerBase
         if (match.CreatorTeam == null || match.CreatorTeam.ManagerId != userId)
             return Forbid();
 
-        if (match.Status != "finding")
+        if (match.Status != MatchStatus.Finding)
             return BadRequest(new { message = "Phải ở trạng thái đang tìm đối mới có thể tự động ghép." });
 
         match.IsAutoMatch = req.IsEnabled;
@@ -686,11 +785,11 @@ public class MatchController : ControllerBase
     private async Task<bool> TryAutoMatchAsync(long matchId)
     {
         var sourceMatch = await _matchRepo.Find(m => m.Id == matchId).Include(m => m.CreatorTeam).FirstOrDefaultAsync();
-        if (sourceMatch == null || sourceMatch.Status != "finding" || !sourceMatch.IsAutoMatch) return false;
+        if (sourceMatch == null || sourceMatch.Status != MatchStatus.Finding || !sourceMatch.IsAutoMatch) return false;
 
         var targetMatch = await _matchRepo.Find(m => 
             m.Id != sourceMatch.Id &&
-            m.Status == "finding" &&
+            m.Status == MatchStatus.Finding &&
             m.IsAutoMatch == true &&
             m.AreaId == sourceMatch.AreaId &&
             m.MatchType == sourceMatch.MatchType &&
@@ -699,7 +798,26 @@ public class MatchController : ControllerBase
             .Include(m => m.CreatorTeam)
             .ToListAsync();
 
-        var matchedTarget = targetMatch.FirstOrDefault(m => Math.Abs((m.MatchTime - sourceMatch.MatchTime).TotalMinutes) <= 15);
+        var GetFairplayRank = (double val) => {
+            if (val < 4) return 1;
+            if (val < 6.5) return 2;
+            if (val < 8) return 3;
+            return 4;
+        };
+
+        var sourceScore = sourceMatch.CreatorTeam?.AverageFairplayScore ?? 10.0;
+        var sourceRank = GetFairplayRank(sourceScore);
+
+        var matchedTarget = targetMatch
+            .Where(m => Math.Abs((m.MatchTime - sourceMatch.MatchTime).TotalMinutes) <= 15)
+            .OrderBy(m => 
+            {
+                var targetScore = m.CreatorTeam?.AverageFairplayScore ?? 10.0;
+                var targetRank = GetFairplayRank(targetScore);
+                return Math.Abs(targetRank - sourceRank);
+            })
+            .ThenByDescending(m => m.CreatorTeam?.AverageFairplayScore ?? 10.0)
+            .FirstOrDefault();
 
         if (matchedTarget != null)
         {
@@ -707,10 +825,10 @@ public class MatchController : ControllerBase
             var awayMatch = sourceMatch.IsHomeMatch ? matchedTarget : sourceMatch;
 
             homeMatch.OpponentTeamId = awayMatch.CreatorTeamId;
-            homeMatch.Status = "scheduled";
+            homeMatch.Status = MatchStatus.Scheduled;
             homeMatch.IsAutoMatch = false;
 
-            awayMatch.Status = "cancelled";
+            awayMatch.Status = MatchStatus.Cancelled;
             awayMatch.Note = (awayMatch.Note + " [Đã ghép tự động vào kèo Sân nhà lúc " + homeMatch.MatchTime.ToString("HH:mm dd/MM") + "]").Trim();
 
             _matchRepo.Update(homeMatch);
@@ -735,8 +853,25 @@ public class MatchController : ControllerBase
                 });
             }
 
-            await _notificationRepo.SaveAsync();
-            await _matchRepo.SaveAsync();
+            try
+            {
+                await _notificationRepo.SaveAsync();
+                await _matchRepo.SaveAsync();
+                await _hubContext.Clients.Group("MatchFeed").SendAsync("MatchListUpdated");
+                
+                if (homeMatch.CreatorTeam?.ManagerId > 0) {
+                    await _hubContext.Clients.Group($"User_{homeMatch.CreatorTeam.ManagerId}").SendAsync("ReceiveNotification");
+                }
+                if (awayMatch.CreatorTeam?.ManagerId > 0) {
+                    await _hubContext.Clients.Group($"User_{awayMatch.CreatorTeam.ManagerId}").SendAsync("ReceiveNotification");
+                }
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Nếu bị conflict (2 người cùng nhận 1 kèo)
+                // Return false để âm thầm thất bại, cron job có thể thử lại sau
+                return false;
+            }
             return true;
         }
 

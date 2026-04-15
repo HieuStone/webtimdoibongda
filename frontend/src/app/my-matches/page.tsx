@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Loader2, Trophy, Clock, CheckCircle, XCircle
 import api from '@/lib/api';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { MatchStatus } from '../matches/_variable/MatchStatus';
 
 interface Match {
   id: number;
@@ -15,7 +16,7 @@ interface Match {
   stadiumName?: string;
   matchTime: string;
   matchType: number;
-  status: string;
+  status: number;
   paymentType: string;
   creatorScore?: number;
   opponentScore?: number;
@@ -43,12 +44,12 @@ interface AttendanceSession {
 const DAYS_OF_WEEK = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const MONTHS = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  finding:          { label: 'Đang tìm đối', color: 'bg-blue-100 text-blue-700 border-blue-200',    icon: <Clock className="w-3 h-3" /> },
-  waiting_approval: { label: 'Chờ duyệt',    color: 'bg-orange-100 text-orange-700 border-orange-200', icon: <Clock className="w-3 h-3" /> },
-  scheduled:        { label: 'Đã lên lịch',  color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle className="w-3 h-3" /> },
-  finished:         { label: 'Kết thúc',     color: 'bg-gray-100 text-gray-600 border-gray-200',    icon: <Trophy className="w-3 h-3" /> },
-  cancelled:        { label: 'Đã hủy',       color: 'bg-red-100 text-red-600 border-red-200',       icon: <XCircle className="w-3 h-3" /> },
+const STATUS_CONFIG: Record<number, { label: string; color: string; icon: React.ReactNode }> = {
+  [MatchStatus.Finding]:          { label: 'Đang tìm đối', color: 'bg-blue-100 text-blue-700 border-blue-200',    icon: <Clock className="w-3 h-3" /> },
+  [MatchStatus.WaitingApproval]:  { label: 'Chờ duyệt',    color: 'bg-orange-100 text-orange-700 border-orange-200', icon: <Clock className="w-3 h-3" /> },
+  [MatchStatus.Scheduled]:        { label: 'Đã lên lịch',  color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle className="w-3 h-3" /> },
+  [MatchStatus.Finished]:         { label: 'Kết thúc',     color: 'bg-gray-100 text-gray-600 border-gray-200',    icon: <Trophy className="w-3 h-3" /> },
+  [MatchStatus.Cancelled]:        { label: 'Đã hủy',       color: 'bg-red-100 text-red-600 border-red-200',       icon: <XCircle className="w-3 h-3" /> },
 };
 
 function getDaysInMonth(year: number, month: number) {
@@ -100,8 +101,8 @@ export default function MyMatchesPage() {
       }
 
       const processed = matchRes.data.map((m: Match) => {
-        if ((m.status === 'finding' || m.status === 'waiting_approval') && new Date(m.matchTime) < new Date()) {
-          return { ...m, status: 'cancelled' };
+        if ((m.status === MatchStatus.Finding || m.status === MatchStatus.WaitingApproval) && new Date(m.matchTime) < new Date()) {
+          return { ...m, status: MatchStatus.Cancelled };
         }
         return m;
       });
@@ -170,7 +171,7 @@ export default function MyMatchesPage() {
         opponentScore: Number(scoreInput.opponent),
       });
       setMatches(prev => prev.map(m => m.id === scoreModal.id
-        ? { ...m, creatorScore: Number(scoreInput.creator), opponentScore: Number(scoreInput.opponent), status: 'finished' }
+        ? { ...m, creatorScore: Number(scoreInput.creator), opponentScore: Number(scoreInput.opponent), status: MatchStatus.Finished }
         : m
       ));
       setScoreModal(null);
@@ -182,12 +183,66 @@ export default function MyMatchesPage() {
   };
 
   const handleVote = async (isAttending: boolean) => {
-    if (!attendanceModal) return;
+    if (!attendanceModal || !myUserId) return;
     setVoteLoading(true);
+
+    // === OPTIMISTIC UPDATE ===
+    // 1. Snapshot cũ để rollback nếu có lỗi
+    const previousSessions = sessions;
+    const previousAttendanceModal = attendanceModal;
+
+    // 2. Xác định hướng vote trước của user (nếu có)
+    const previousVote = attendanceModal.votes.find(v => v.userId === myUserId);
+    const wasPreviouslyAttending = previousVote?.isAttending;
+    const hadVotedBefore = !!previousVote;
+
+    // 3. Tính toán count mới
+    let newAttendingCount = attendanceModal.attendingCount;
+    let newNotAttendingCount = attendanceModal.notAttendingCount;
+    if (hadVotedBefore) {
+      if (wasPreviouslyAttending && !isAttending) {
+        newAttendingCount--;
+        newNotAttendingCount++;
+      } else if (!wasPreviouslyAttending && isAttending) {
+        newNotAttendingCount--;
+        newAttendingCount++;
+      }
+    } else {
+      if (isAttending) newAttendingCount++;
+      else newNotAttendingCount++;
+    }
+
+    // 4. Build vote list mới: xóa vote cũ của user (nếu có), rồi thêm vote mới
+    const newVotes = [
+      ...attendanceModal.votes.filter(v => v.userId !== myUserId),
+      { userId: myUserId, userName: 'Bạn', isAttending, note: '' }
+    ];
+
+    const optimisticSession: AttendanceSession = {
+      ...attendanceModal,
+      votes: newVotes,
+      attendingCount: newAttendingCount,
+      notAttendingCount: newNotAttendingCount,
+    };
+
+    // 5. Cập nhật state tức thì
+    setAttendanceModal(optimisticSession);
+    setSessions(prev => prev.map(s => s.id === attendanceModal.id ? optimisticSession : s));
+
     try {
       await api.post(`/attendance/${attendanceModal.id}/vote`, { isAttending, note: '' });
-      await fetchPageData(); // Refresh the list of sessions
+      // Làm mới nền để API đồng bộ tên thật của User lên lại
+      fetchPageData().then(()=>{
+        setSessions(prev => {
+          const fresh = prev.find(s => s.id === previousAttendanceModal.id);
+          if (fresh) setAttendanceModal(fresh);
+          return prev;
+        });
+      });
     } catch (err: any) {
+      // Rollback nếu lỗi
+      setAttendanceModal(previousAttendanceModal);
+      setSessions(previousSessions);
       alert(err.response?.data?.message || 'Lỗi khi điểm danh.');
     } finally {
       setVoteLoading(false);
@@ -294,8 +349,8 @@ export default function MyMatchesPage() {
 
                   const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
                   const isSelected = selectedDay === day;
-                  const hasPast = dayMatches.some(m => m.status === 'finished');
-                  const hasFuture = dayMatches.some(m => m.status === 'scheduled' || m.status === 'finding');
+                  const hasPast = dayMatches.some(m => m.status === MatchStatus.Finished);
+                  const hasFuture = dayMatches.some(m => m.status === MatchStatus.Scheduled || m.status === MatchStatus.Finding);
                   const hasSession = daySessions.length > 0;
                   
                   return (
@@ -357,7 +412,7 @@ export default function MyMatchesPage() {
                 <h3 className="font-black text-gray-800 mb-4 text-lg">⚡ Sắp Tới</h3>
                 <div className="space-y-3">
                   {matches
-                    .filter(m => new Date(m.matchTime) >= today && m.status !== 'cancelled')
+                    .filter(m => new Date(m.matchTime) >= today && m.status !== MatchStatus.Cancelled)
                     .slice(0, 4)
                     .map(m => (
                       <MatchCard 
@@ -408,16 +463,16 @@ export default function MyMatchesPage() {
                     <div className="p-2 space-y-2">
                       {dayMatches.map(m => {
                         const content = (
-                          <div className={`rounded-lg p-2 text-[11px] font-bold border hover:opacity-80 transition-opacity mb-1 ${m.status !== 'cancelled' ? 'cursor-pointer' : ''} ${STATUS_CONFIG[m.status]?.color ?? 'bg-gray-100 text-gray-600'}`}>
+                          <div className={`rounded-lg p-2 text-[11px] font-bold border hover:opacity-80 transition-opacity mb-1 ${m.status !== MatchStatus.Cancelled ? 'cursor-pointer' : ''} ${STATUS_CONFIG[Number(m.status)]?.color ?? 'bg-gray-100 text-gray-600'}`}>
                             <div className="truncate">⚽ {m.creatorTeamName}</div>
                             {m.opponentTeamName && <div className="truncate text-[10px] opacity-80">vs {m.opponentTeamName}</div>}
-                            {m.status === 'finished' && m.creatorScore != null && (
+                            {m.status === MatchStatus.Finished && m.creatorScore != null && (
                               <div className="text-center font-black text-base mt-1">{m.creatorScore} – {m.opponentScore}</div>
                             )}
                             <div className="opacity-70 mt-0.5 font-normal">{new Date(m.matchTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
                           </div>
                         );
-                        return m.status !== 'cancelled' ? (
+                        return m.status !== MatchStatus.Cancelled ? (
                           <Link href={`/matches/${m.id}`} key={`mw-${m.id}`}>{content}</Link>
                         ) : (
                           <div key={`mw-${m.id}`} className="opacity-60">{content}</div>
@@ -637,13 +692,13 @@ function AttendanceCard({ session, onVote }: { session: AttendanceSession; onVot
 }
 
 function MatchCard({ match, session, compact = false, onEnterScore, onVoteAttendance }: { match: Match; session?: AttendanceSession; compact?: boolean; onEnterScore: () => void; onVoteAttendance: () => void }) {
-  const st = STATUS_CONFIG[match.status] ?? STATUS_CONFIG['finding'];
+  const st = STATUS_CONFIG[Number(match.status)] ?? STATUS_CONFIG[MatchStatus.Finding];
   const matchTime = new Date(match.matchTime);
-  const isFinished = match.status === 'finished';
-  const hasOpponent = match.status === 'scheduled' || match.status === 'finished';
+  const isFinished = match.status === MatchStatus.Finished;
+  const hasOpponent = match.status === MatchStatus.Scheduled || match.status === MatchStatus.Finished;
   const isAfter90Mins = (new Date().getTime() - matchTime.getTime()) >= 90 * 60 * 1000;
 
-  const showDetails = match.status !== 'cancelled';
+  const showDetails = match.status !== MatchStatus.Cancelled;
   const showEnterScore = hasOpponent && isAfter90Mins;
 
   return (

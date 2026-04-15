@@ -7,12 +7,16 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import ChatBox from '@/components/ChatBox';
 import { LevelTeam } from '@/app/teams/_variables/LevelTeam';
+import { MatchStatus } from '../_variable/MatchStatus';
 
 export default function MatchDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [ratingScore, setRatingScore] = useState<number>(10);
+  const [ratingComment, setRatingComment] = useState("");
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   const [matchData, setMatchData] = useState<any>(null);
   const [requests, setRequests] = useState<any[]>([]);
@@ -105,7 +109,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
   const handleJoinMatch = async (selectedTeamId: number) => {
     try {
-      await api.post(`/match/${id}/request-join`, selectedTeamId);
+      await api.post(`/match/${id}/request-join`, { teamId: selectedTeamId });
       alert("Đã gửi yêu cầu ghép kèo thành công!");
       window.location.reload();
     } catch (error: any) {
@@ -114,6 +118,19 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
       } else {
         alert(error.response?.data?.message || "Lỗi ghép kèo. Bạn có phải đội trưởng không?");
       }
+    }
+  };
+
+  const handleRateOpponent = async () => {
+    setSubmittingRating(true);
+    try {
+      await api.post(`/match/${id}/rate`, { fairplayRating: ratingScore, comment: ratingComment });
+      alert("Đánh giá thành công! Cảm ơn bạn đã góp phần xây dựng cộng đồng Fairplay.");
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Có lỗi xảy ra khi gửi đánh giá.');
+    } finally {
+      setSubmittingRating(false);
     }
   };
 
@@ -155,16 +172,16 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
             <div className="w-24 h-24 bg-white/20 rounded-full flex justify-center items-center text-4xl shadow-inner border-2 border-white/50 backdrop-blur relative z-10 shrink-0">
               ⚔️
             </div>
-            <div className="relative z-10 flex-1">
-              <div className="inline-block bg-emerald-900/50 text-emerald-100 px-3 py-1 rounded-full text-xs font-bold mb-3 border border-emerald-500/30 uppercase tracking-wider">
-                Status: {matchData.status === 'scheduled' ? 'Đã Chốt Đối Thủ' : 'Đang Tìm Kèo'}
-              </div>
-              <div className="inline-block bg-emerald-900/50 text-emerald-100 px-3 py-1 rounded-full text-xs font-bold mb-3 border border-emerald-500/30 uppercase tracking-wider">
-                {matchData.isHomeMatch ? 'Đã có sân' : 'Chưa có sân'}
-              </div>
+              <div className="relative z-10 flex-1">
+                <div className="inline-block bg-emerald-900/50 text-emerald-100 px-3 py-1 rounded-full text-xs font-bold mb-3 border border-emerald-500/30 uppercase tracking-wider">
+                  Status: {matchData.status === MatchStatus.Finding ? 'Đang Tìm Kèo' : 'Đã Chốt Đối Thủ'}
+                </div>
+                <div className="inline-block bg-emerald-900/50 text-emerald-100 px-3 py-1 rounded-full text-xs font-bold mb-3 border border-emerald-500/30 uppercase tracking-wider">
+                  {matchData.isHomeMatch ? 'Đã có sân' : 'Chưa có sân'}
+                </div>
               <h1 className="text-2xl md:text-3xl font-bold mb-2">{matchData.creatorTeamName} đang rủ đá giao lưu</h1>
               <div className="flex flex-col sm:flex-row gap-4 mt-4 font-medium text-emerald-100">
-                <div className="flex items-center justify-center md:justify-start gap-2"><MapPin className="w-5 h-5" /> {matchData.stadiumName || 'Chưa chốt sân'}</div>
+                <div className="flex items-center justify-center md:justify-start gap-2"><MapPin className="w-5 h-5" /> {matchData.stadiumName || 'Chưa có sân'}</div>
                 <div className="flex items-center justify-center md:justify-start gap-2"><Calendar className="w-5 h-5" /> {new Date(matchData.matchTime).toLocaleString('vi-VN')}</div>
               </div>
             </div>
@@ -176,7 +193,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
             <div>💰 Chế độ: {matchData.paymentType}</div>
           </div>
 
-          {!isMatchOwner && matchData.status !== 'scheduled' && (
+          {!isMatchOwner && matchData.status !== MatchStatus.Scheduled && (
             <div className="p-8 border-b border-gray-100 flex flex-col items-center gap-4 bg-white font-medium">
               {alreadyRequested ? (
                 <div className="flex flex-col items-center gap-2 text-blue-600 bg-blue-50 px-6 py-4 rounded-2xl border border-blue-100">
@@ -219,7 +236,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
             </div>
           )}
 
-          {matchData.status === 'scheduled' && (
+          {matchData.status === MatchStatus.Scheduled && (
             <div className="p-8 text-center bg-blue-50/50 border-b border-blue-100">
               <div className="text-4xl mb-4 transform hover:scale-110 transition-transform">🤝</div>
               <h2 className="text-3xl font-black text-blue-900 tracking-tight">
@@ -249,10 +266,44 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
               <p className="text-gray-700 italic bg-gray-50 p-5 rounded-2xl border border-gray-100 leading-relaxed max-w-2xl text-lg">"{matchData.note}"</p>
             </div>
           )}
+
+          {matchData.status === MatchStatus.Finished && canChat && (
+            <div className="px-8 py-8 bg-blue-50/50 border-t border-blue-100 flex flex-col items-center">
+              <h3 className="text-xl font-black text-blue-900 mb-2">Đánh giá đối thủ (Fairplay)</h3>
+              <p className="text-blue-600 mb-6 text-sm text-center max-w-md">Hãy chấm điểm mức độ chơi đẹp, đúng giờ và thái độ của đối thủ từ 0-10 điểm.</p>
+
+              <div className="flex items-center gap-4 mb-6">
+                <input
+                  type="range"
+                  min="0" max="10" step="0.5"
+                  value={ratingScore}
+                  onChange={(e) => setRatingScore(parseFloat(e.target.value))}
+                  className="w-48 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                />
+                <span className="text-3xl font-black text-emerald-600 w-16">{ratingScore}</span>
+              </div>
+
+              <textarea
+                placeholder="Nhận xét thêm về đối thủ (không bắt buộc)..."
+                value={ratingComment}
+                onChange={(e) => setRatingComment(e.target.value)}
+                className="w-full max-w-md p-3 rounded-xl border border-blue-200 text-sm focus:ring-emerald-500 bg-white mb-4"
+                rows={3}
+              />
+
+              <button
+                onClick={handleRateOpponent}
+                disabled={submittingRating}
+                className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold rounded-xl shadow-lg transition-transform hover:-translate-y-1 w-full max-w-md flex justify-center items-center gap-2 disabled:opacity-70 disabled:hover:translate-y-0"
+              >
+                {submittingRating ? <Loader2 className="w-5 h-5 animate-spin" /> : <>⭐ Gửi Đánh Giá</>}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Nơi quản lý yêu cầu duyệt Cáp Kèo (Chỉ hiển thị cho Manager) */}
-        {isMatchOwner && matchData.status !== 'scheduled' && (
+        {isMatchOwner && matchData.status !== MatchStatus.Scheduled && (
           <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-8 border border-orange-200 shadow-sm mb-8 relative overflow-hidden">
             <div className="absolute right-0 top-0 opacity-10 transform translate-x-1/2 -translate-y-1/2">
               <CheckCircle className="w-64 h-64 text-orange-900" />

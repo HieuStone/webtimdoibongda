@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TimDoiBongDa.Domain.Enums;
 
 namespace TimDoiBongDa.Application.DTOs.MatchDtos;
 
@@ -35,11 +36,12 @@ public class MatchResponse
     public bool IsAutoMatch { get; set; }
     public int SkillRequirement { get; set; }
     public string PaymentType { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
+    public MatchStatus Status { get; set; }
     public string? Note { get; set; }
     public int? CreatorScore { get; set; }
     public int? OpponentScore { get; set; }
     public long? OpponentTeamId { get; set; }
+    public double? CreatorFairplayScore { get; set; }
 }
 
 public class ToggleAutoMatchDto

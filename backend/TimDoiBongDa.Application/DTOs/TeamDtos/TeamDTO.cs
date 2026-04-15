@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace TimDoiBongDa.Application.DTOs.TeamDtos;
 
@@ -23,4 +23,5 @@ public class TeamResponse
     public int SkillLevel { get; set; }
     public long ManagerId { get; set; }
     public string ManagerName { get; set; } = string.Empty;
+    public double? AverageFairplayScore { get; set; }
 }

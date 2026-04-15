@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LogOut, User, Menu, X, Activity, Users, MapPin, CalendarDays, Bell, CheckCircle2 } from 'lucide-react';
 import api from '@/lib/api';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import * as signalR from '@microsoft/signalr';
 
 interface NotificationItem {
   id: number;
@@ -19,6 +21,7 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Notifications state
+  const { user } = useCurrentUser();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -38,13 +41,42 @@ export default function Navbar() {
     setUserName(localStorage.getItem('userName'));
     fetchNotifications();
 
-    // Polling mỗi 30 giây
+    // Polling mỗi 30 giây (backup)
     const interval = setInterval(() => {
       fetchNotifications();
     }, 30000);
 
     return () => clearInterval(interval);
   }, []);
+
+  // SignalR Real-time Notifications
+  useEffect(() => {
+    if (!user) return;
+
+    const token = localStorage.getItem('token');
+    const hubConnection = new signalR.HubConnectionBuilder()
+      .withUrl(process.env.NEXT_PUBLIC_SIGNALR_HUB as string, {
+        accessTokenFactory: () => token || ''
+      })
+      .withAutomaticReconnect()
+      .build();
+
+    hubConnection.start()
+      .then(() => {
+        console.log('SignalR connected to NotificationHub');
+        hubConnection.invoke('JoinUser', user.id);
+      })
+      .catch(err => console.error('SignalR Connection Error: ', err));
+
+    hubConnection.on('ReceiveNotification', () => {
+      console.log('You have a new Notification. Reloading...');
+      fetchNotifications();
+    });
+
+    return () => {
+       hubConnection.stop();
+    };
+  }, [user]);
 
   // Click outside to close notifications dropdown
   useEffect(() => {

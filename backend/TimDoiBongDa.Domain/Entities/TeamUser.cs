@@ -1,5 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using TimDoiBongDa.Domain.Enums;
 
 namespace TimDoiBongDa.Domain.Entities;
 
@@ -21,8 +22,7 @@ public class TeamUser
     public string Status { get; set; } = "pending"; // 'pending', 'approved'
 
     [Required]
-    [MaxLength(20)]
-    public string TeamRole { get; set; } = "member"; // 'member', 'vice_captain'
+    public TeamRole TeamRole { get; set; } = TeamRole.Member; // 0 = Member, 1 = ViceCaptain
 
     public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

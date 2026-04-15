@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TimDoiBongDa.Domain.Entities;
@@ -20,8 +20,8 @@ public class MatchRating
     [ForeignKey("TargetTeamId")]
     public Team? TargetTeam { get; set; }
 
-    [Range(1, 5)]
-    public int FairplayRating { get; set; }
+    [Range(0, 10)]
+    public double FairplayRating { get; set; }
 
     public bool IsSkillMatched { get; set; }
     public bool IsBomKeo { get; set; }

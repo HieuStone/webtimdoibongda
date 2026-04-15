@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using TimDoiBongDa.Application.Interfaces;
 using TimDoiBongDa.Application.Interfaces.Repositories;
 using TimDoiBongDa.Domain.Entities;
+using Microsoft.AspNetCore.SignalR;
+using TimDoiBongDa.Api.Hubs;
 
 namespace TimDoiBongDa.Api.Controllers;
 
@@ -31,19 +33,22 @@ public class AttendanceController : ControllerBase
     private readonly ITeamUserRepository _teamUserRepo;
     private readonly IGenericRepository<Notification> _notificationRepo;
     private readonly IBaseServices _baseServices;
+    private readonly IHubContext<NotificationHub> _hubContext;
 
     public AttendanceController(
         IAttendanceRepository attendanceRepo,
         IGenericRepository<AttendanceVote> voteRepo,
         ITeamUserRepository teamUserRepo,
         IGenericRepository<Notification> notificationRepo,
-        IBaseServices baseServices)
+        IBaseServices baseServices,
+        IHubContext<NotificationHub> hubContext)
     {
         _attendanceRepo = attendanceRepo;
         _voteRepo = voteRepo;
         _teamUserRepo = teamUserRepo;
         _notificationRepo = notificationRepo;
         _baseServices = baseServices;
+        _hubContext = hubContext;
     }
 
     [Authorize]
@@ -87,6 +92,10 @@ public class AttendanceController : ControllerBase
         if (teamMembers.Any())
         {
             await _notificationRepo.SaveAsync();
+            foreach (var memberId in teamMembers)
+            {
+                await _hubContext.Clients.Group($"User_{memberId}").SendAsync("ReceiveNotification");
+            }
         }
 
         return Ok(new { message = "Lịch điểm danh đã được tạo thành công", sessionId = session.Id });

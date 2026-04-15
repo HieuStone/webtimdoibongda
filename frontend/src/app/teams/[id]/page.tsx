@@ -8,6 +8,7 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import ChatBox from '@/components/ChatBox';
+import { getFairplayRankLabel } from '@/app/teams/_variables/FairplayRank';
 
 export default function TeamDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -133,10 +134,22 @@ export default function TeamDetailsPage({ params }: { params: Promise<{ id: stri
               🛡️
             </div>
             <div className="flex-1">
-              <h1 className="text-3xl md:text-4xl font-bold mb-2">
-                {team.shortName ? `[${team.shortName}] ` : ''}{team.name}
-              </h1>
-              <p className="text-blue-100 font-medium text-lg mb-4">Đội trưởng: {team.managerName}</p>
+              <div className="flex flex-col md:flex-row md:items-end justify-between w-full">
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold mb-2">
+                    {team.shortName ? `[${team.shortName}] ` : ''}{team.name}
+                  </h1>
+                  <p className="text-blue-100 font-medium text-lg mb-4">Đội trưởng: {team.managerName}</p>
+                </div>
+                <div className="bg-blue-800/50 backdrop-blur border border-blue-400/30 px-6 py-3 rounded-2xl md:text-right mt-2 md:mt-0 mb-4 inline-block">
+                  <div className="text-blue-200 text-sm font-bold uppercase tracking-wider mb-1">Điểm Fairplay</div>
+                  <div className="text-2xl font-black text-white">
+                    {team.averageFairplayScore != null 
+                      ? `★ ${team.averageFairplayScore} (${getFairplayRankLabel(team.averageFairplayScore)})` 
+                      : "★ Chưa có"}
+                  </div>
+                </div>
+              </div>
 
               {isMember && (
                 <button

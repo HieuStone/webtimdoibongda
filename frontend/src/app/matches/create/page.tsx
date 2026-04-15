@@ -5,9 +5,10 @@ import Navbar from '@/components/Navbar';
 import { Activity, MapPin, Trophy, ArrowLeft, Loader2, Calendar, PlayCircle } from 'lucide-react';
 import api from '@/lib/api';
 import Link from 'next/link';
+import { LevelTeam } from '@/app/teams/_variables/LevelTeam';
 
 interface Area { id: number; name: string; city: string; }
-interface Team { id: number; name: string; managerId: number; }
+interface Team { id: number; name: string; managerId: number; teamRole?: number; }
 
 export default function CreateMatchPage() {
   const router = useRouter();
@@ -47,14 +48,41 @@ export default function CreateMatchPage() {
           return;
         }
 
-        const teamsRes = await api.get('/team');
+        const userId = profileRes.data.id;
+
+        // Lấy cả danh sách đội mình quản lý (Captain) và đội mình là Phó
+        const [allTeamsRes, myTeamsRes] = await Promise.all([
+          api.get('/team'),
+          api.get('/team/my-teams')
+        ]);
 
         setAreas(areaRes.data);
-        const managed = teamsRes.data.filter((t: any) => t.managerId === profileRes.data.id);
-        setMyTeams(managed);
 
-        // Pre-fill valid values
-        if (managed.length > 0) setFormData(prev => ({ ...prev, creatorTeamId: managed[0].id }));
+        // Đội mà user là Manager (Captain)
+        const managedTeams: Team[] = allTeamsRes.data
+          .filter((t: any) => t.managerId === userId)
+          .map((t: any) => ({ ...t, teamRole: 2 })); // Captain = 2
+
+        // Đội mà user là Phần tóm tắc TeamRole từ my-teams
+        // my-teams API trả về TeamResponse nởm, cần check teamRole qua members
+        // Giải pháp đơn giản: gọi /team/{id}/members với mỗi đội mình là member
+        const myTeamIds: number[] = myTeamsRes.data.map((t: any) => t.id);
+        const nonCaptainTeamIds = myTeamIds.filter(id => !managedTeams.find(t => t.id === id));
+
+        const viceCaptainTeams: Team[] = [];
+        await Promise.all(nonCaptainTeamIds.map(async (teamId: number) => {
+          const membersRes = await api.get(`/team/${teamId}/members`);
+          const me = membersRes.data.find((m: any) => m.userId === userId);
+          if (me && me.teamRole === 1) { // ViceCaptain = 1
+            const team = myTeamsRes.data.find((t: any) => t.id === teamId);
+            if (team) viceCaptainTeams.push({ ...team, teamRole: 1 });
+          }
+        }));
+
+        const allEligibleTeams = [...managedTeams, ...viceCaptainTeams];
+        setMyTeams(allEligibleTeams);
+
+        if (allEligibleTeams.length > 0) setFormData(prev => ({ ...prev, creatorTeamId: allEligibleTeams[0].id }));
         if (areaRes.data.length > 0) setFormData(prev => ({ ...prev, areaId: areaRes.data[0].id }));
 
       } catch (err: any) {
@@ -127,9 +155,9 @@ export default function CreateMatchPage() {
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white font-medium transition-all"
                 >
                   {myTeams.length === 0 ? (
-                    <option value={0}>❌ Bạn không sở hữu đội bóng nào (Hãy sang mục Đội Bóng để Lập đội)</option>
+                    <option value={0}>❌ Bạn chưa là Đội trưởng hoặc Đội phó của đội bóng nào</option>
                   ) : (
-                    myTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                    myTeams.map(t => <option key={t.id} value={t.id}>{t.name} {t.teamRole === 1 ? '(Đội phó)' : '(Đội trưởng)'}</option>)
                   )}
                 </select>
               </div>
@@ -138,11 +166,11 @@ export default function CreateMatchPage() {
                 <label className="block text-sm font-bold text-gray-700 mb-2">Loại Kèo *</label>
                 <div className="flex gap-4">
                   <label className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 border rounded-xl cursor-pointer text-center font-bold transition-all ${formData.isHomeMatch ? 'bg-emerald-600 text-white border-emerald-600 shadow-md transform scale-[1.02]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" name="isHomeMatch" className="hidden" checked={formData.isHomeMatch} onChange={() => setFormData({...formData, isHomeMatch: true})} />
+                    <input type="radio" name="isHomeMatch" className="hidden" checked={formData.isHomeMatch} onChange={() => setFormData({ ...formData, isHomeMatch: true })} />
                     ⚽ Có Sân Nhà (Chủ nhà)
                   </label>
                   <label className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 border rounded-xl cursor-pointer text-center font-bold transition-all ${!formData.isHomeMatch ? 'bg-orange-500 text-white border-orange-500 shadow-md transform scale-[1.02]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" name="isHomeMatch" className="hidden" checked={!formData.isHomeMatch} onChange={() => setFormData({...formData, isHomeMatch: false})} />
+                    <input type="radio" name="isHomeMatch" className="hidden" checked={!formData.isHomeMatch} onChange={() => setFormData({ ...formData, isHomeMatch: false })} />
                     ✈️ Cần Đi Khách (Làm khách)
                   </label>
                 </div>
@@ -184,14 +212,55 @@ export default function CreateMatchPage() {
                   <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-emerald-600" /> Thời gian bóng lăn *
                   </label>
-                  <input
-                    type="datetime-local"
-                    name="matchTime"
-                    required
-                    value={formData.matchTime}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white font-medium transition-all text-gray-800"
-                  />
+
+                  {/* Custom date-time picker */}
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-emerald-600 z-10">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="datetime-local"
+                      name="matchTime"
+                      required
+                      min={localISOTime}
+                      value={formData.matchTime}
+                      onChange={handleChange}
+                      className="w-full pl-10 pr-4 py-3 bg-emerald-50 border-2 border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 focus:bg-white font-semibold transition-all text-gray-800 cursor-pointer hover:border-emerald-400"
+                    />
+                  </div>
+
+                  {/* Chips giờ thi đấu phổ biến */}
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-400 mb-1.5">Chọn nhanh giờ phổ biến:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {['17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00'].map(time => {
+                        const [h, m] = time.split(':');
+                        const dateOnly = formData.matchTime.slice(0, 10);
+                        const chipValue = `${dateOnly}T${h}:${m}`;
+                        const isActive = formData.matchTime === chipValue;
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, matchTime: chipValue }))}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${isActive
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm scale-105'
+                              : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400 hover:text-emerald-700'
+                              }`}
+                          >
+                            ⏰ {time}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Preview thời gian đã chọn */}
+                  {formData.matchTime && (
+                    <p className="mt-2 text-xs text-emerald-700 font-semibold bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 inline-flex items-center gap-1.5">
+                      ✅ Đã chọn: {new Date(formData.matchTime).toLocaleString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -228,21 +297,15 @@ export default function CreateMatchPage() {
                 <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
                   <Trophy className="w-4 h-4 text-orange-500" /> Yêu cầu đối thủ nằm ở trình độ
                 </label>
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-1 grid grid-cols-5 gap-1">
-                  {[
-                    { val: 1, label: 'Kém' },
-                    { val: 2, label: 'Yếu' },
-                    { val: 3, label: 'TB' },
-                    { val: 4, label: 'Khá' },
-                    { val: 5, label: 'B.Chuyên' }
-                  ].map((level) => (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-1 grid grid-cols-6 gap-1">
+                  {LevelTeam.map((level) => (
                     <button
-                      key={level.val}
+                      key={level.value}
                       type="button"
-                      onClick={() => setFormData({ ...formData, skillRequirement: level.val })}
-                      className={`py-3 text-[12px] sm:text-sm font-bold rounded-lg transition-all ${formData.skillRequirement === level.val
-                          ? 'bg-emerald-600 text-white shadow-md transform scale-[1.02]'
-                          : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                      onClick={() => setFormData({ ...formData, skillRequirement: level.value })}
+                      className={`py-3 text-[12px] sm:text-sm font-bold rounded-lg transition-all ${formData.skillRequirement === level.value
+                        ? 'bg-emerald-600 text-white shadow-md transform scale-[1.02]'
+                        : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'
                         }`}
                     >
                       {level.label}
@@ -269,17 +332,18 @@ export default function CreateMatchPage() {
                 </label>
                 <label className="flex items-center cursor-pointer bg-gray-50 p-4 border border-gray-200 rounded-xl transition-all hover:bg-blue-50">
                   <div className="relative">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only" 
+                    <input
+                      type="checkbox"
+                      className="sr-only"
                       checked={formData.isAutoMatch}
-                      onChange={(e) => setFormData({...formData, isAutoMatch: e.target.checked})}
+                      onChange={(e) => setFormData({ ...formData, isAutoMatch: e.target.checked })}
                     />
                     <div className={`block w-14 h-8 rounded-full transition-colors ${formData.isAutoMatch ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
                     <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${formData.isAutoMatch ? 'transform translate-x-6' : ''}`}></div>
                   </div>
                   <div className="ml-4 font-bold text-gray-700 text-sm">
                     {formData.isAutoMatch ? 'BẬT (Hệ thống sẽ tự động tìm và ghép với đội có cùng trình độ)' : 'TẮT Auto-Match (Chờ tự tìm đối thủ)'}
+                    <p className="text-xs text-gray-400 mb-1.5">Lưu ý: Các kèo đấu tự động sẽ có giao động +/- 15 phút so với giờ đã chọn</p>
                   </div>
                 </label>
               </div>

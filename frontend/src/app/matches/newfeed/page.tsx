@@ -1,11 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
-import { MapPin, Search, Calendar, PlayCircle, Filter, Loader2, Undo2, XCircle, CheckCircle } from 'lucide-react';
+import { MapPin, Search, Calendar, PlayCircle, Filter, Loader2, Undo2, XCircle, CheckCircle, Clock, Trophy } from 'lucide-react';
 import api from '@/lib/api';
-import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { LevelTeam } from '@/app/teams/_variables/LevelTeam';
+import { getFairplayRankLabel, getFairplayRankStyle } from '@/app/teams/_variables/FairplayRank';
+import * as signalR from '@microsoft/signalr';
+import Link from 'next/link';
+import { MatchStatus } from '../_variable/MatchStatus';
 
 interface Match {
   id: number;
@@ -17,16 +20,17 @@ interface Match {
   matchType: number;
   skillRequirement: number;
   paymentType: string;
-  status: string;
+  status: number;
   isHomeMatch: boolean;
+  creatorFairplayScore?: number | null;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  finding: { label: 'Đang tìm đối', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: <PlayCircle className="w-3 h-3" /> },
-  waiting_approval: { label: 'Chờ duyệt', color: 'bg-orange-100 text-orange-700 border-orange-200', icon: <PlayCircle className="w-3 h-3" /> },
-  scheduled: { label: 'Đã lên lịch', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle className="w-3 h-3" /> },
-  finished: { label: 'Kết thúc', color: 'bg-gray-100 text-gray-600 border-gray-200', icon: <CheckCircle className="w-3 h-3" /> },
-  cancelled: { label: 'Đã hủy', color: 'bg-red-100 text-red-600 border-red-200', icon: <XCircle className="w-3 h-3" /> },
+const STATUS_CONFIG: Record<number, { label: string; color: string; icon: React.ReactNode }> = {
+  [MatchStatus.Finding]: { label: 'Đang tìm đối', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: <PlayCircle className="w-3 h-3" /> },
+  [MatchStatus.WaitingApproval]: { label: 'Chờ duyệt', color: 'bg-orange-100 text-orange-700 border-orange-200', icon: <Clock className="w-3 h-3" /> },
+  [MatchStatus.Scheduled]: { label: 'Đã lên lịch', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle className="w-3 h-3" /> },
+  [MatchStatus.Finished]: { label: 'Kết thúc', color: 'bg-gray-100 text-gray-600 border-gray-200', icon: <Trophy className="w-3 h-3" /> },
+  [MatchStatus.Cancelled]: { label: 'Đã hủy', color: 'bg-red-100 text-red-600 border-red-200', icon: <XCircle className="w-3 h-3" /> },
 };
 
 export default function NewfeedPage() {
@@ -52,6 +56,28 @@ export default function NewfeedPage() {
     fetchMatches();
     fetchAllTeams();
   }, [filterDate, filterTeamId, filterHome]);
+
+  // Thiết lập SignalR Real-time Connection
+  useEffect(() => {
+    const hubConnection = new signalR.HubConnectionBuilder()
+      .withUrl(process.env.NEXT_PUBLIC_SIGNALR_HUB as string)
+      .withAutomaticReconnect()
+      .build();
+
+    hubConnection.start()
+      .then(() => {
+        hubConnection.invoke('JoinFeed');
+      })
+      .catch(err => console.error('SignalR Connection Error: ', err));
+
+    hubConnection.on('MatchListUpdated', () => {
+      fetchMatches();
+    });
+
+    return () => {
+      hubConnection.invoke('LeaveFeed').finally(() => hubConnection.stop());
+    };
+  }, [filterDate, filterTeamId, filterHome, searchTerm]);
 
   const fetchAllTeams = async () => {
     try {
@@ -257,7 +283,12 @@ export default function NewfeedPage() {
                           <p className="text-sm text-green-600 font-medium">Trình độ: {formatSkill(match.skillRequirement)}</p>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-2">
+                      <div className="flex flex-col items-end gap-1.5">
+                        <div className={`text-xs font-bold px-2.5 py-1 rounded-md border ${getFairplayRankStyle(match.creatorFairplayScore)}`} title="Fairplay Score">
+                          {match.creatorFairplayScore != null
+                            ? `★ ${match.creatorFairplayScore} (${getFairplayRankLabel(match.creatorFairplayScore)})`
+                            : "★ Chưa rõ"}
+                        </div>
                         <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg border border-gray-200">Sân {match.matchType}</span>
                         <span className={`px-2.5 py-1 text-xs font-bold rounded-lg border ${match.isHomeMatch ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
                           {match.isHomeMatch ? '⚽ Có Sân Nhà' : '✈️ Cần Đi Khách'}
@@ -268,11 +299,11 @@ export default function NewfeedPage() {
                     <div className="space-y-2 mt-4 mb-6">
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
                         <MapPin className="w-4 h-4 text-gray-400" />
-                        <span className="font-medium truncate">{match.stadiumName || 'Chưa chốt sân'}</span>
+                        <span className="font-medium truncate">{match.stadiumName || 'Chưa có sân'}</span>
                       </div>
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
                         <Calendar className="w-4 h-4 text-gray-400" />
-                        <span className="font-medium text-red-600">{new Date(match.matchTime).toLocaleString('vi-VN')}</span>
+                        <span className="font-medium truncate">{new Date(match.matchTime).toLocaleString('vi-VN')}</span>
                       </div>
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
                         <span className="w-4 h-4 flex justify-center items-center font-bold text-gray-400">💰</span>
@@ -283,10 +314,10 @@ export default function NewfeedPage() {
                     <div className="pt-4 border-t border-gray-100 flex gap-3">
                       <button
                         onClick={() => handleRequestJoin(match.id, match.matchTime)}
-                        disabled={actionLoading === match.id || loadingTeams || match.status === 'scheduled'}
+                        disabled={actionLoading === match.id || loadingTeams || match.status === MatchStatus.Scheduled}
                         className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-sm disabled:opacity-70 flex justify-center items-center"
                       >
-                        {actionLoading === match.id ? <Loader2 className="w-5 h-5 animate-spin" /> : (match.status === 'scheduled' ? 'Đã Chốt' : 'Nhận Kèo')}
+                        {actionLoading === match.id ? <Loader2 className="w-5 h-5 animate-spin" /> : (match.status === MatchStatus.Scheduled ? 'Đã Chốt' : 'Nhận Kèo')}
                       </button>
                       <Link
                         href={`/matches/${match.id}`}

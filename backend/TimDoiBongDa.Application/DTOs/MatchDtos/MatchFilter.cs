@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using TimDoiBongDa.Domain.Enums;
 
 namespace TimDoiBongDa.Application.DTOs.MatchDtos
 {
     public class MatchFilter : PagingParams<MatchResponse>
     {
         public DateTime? MatchTime { get; set; }
-        public string? Status { get; set; }
+        public MatchStatus? Status { get; set; }
         public bool? IsOpponent { get; set; }
         public long? TeamId { get; set; }
         public bool? IsHomeMatch { get; set; }
@@ -22,9 +23,9 @@ namespace TimDoiBongDa.Application.DTOs.MatchDtos
                 predicates.Add(x => x.MatchTime.Date == date);
             }
 
-            if (!string.IsNullOrEmpty(Status))
+            if (Status.HasValue)
             {
-                predicates.Add(x => x.Status == Status);
+                predicates.Add(x => x.Status == Status.Value);
             }
 
             if (TeamId.HasValue)

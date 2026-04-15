@@ -5,9 +5,11 @@ using System.Security.Claims;
 using System.Text.RegularExpressions;
 using TimDoiBongDa.Application.Interfaces;
 using TimDoiBongDa.Application.DTOs.TeamDtos;
-using TimDoiBongDa.Application.Interfaces;
 using TimDoiBongDa.Domain.Entities;
 using TimDoiBongDa.Application.Interfaces.Repositories;
+using TimDoiBongDa.Domain.Enums;
+using Microsoft.AspNetCore.SignalR;
+using TimDoiBongDa.Api.Hubs;
 
 namespace TimDoiBongDa.Api.Controllers;
 
@@ -20,19 +22,22 @@ public class TeamController : ControllerBase
     private readonly IGenericRepository<Notification> _notificationRepo;
     private readonly IGenericRepository<User> _userRepo;
     private readonly IBaseServices _baseServices;
+    private readonly IHubContext<NotificationHub> _hubContext;
 
     public TeamController(
         ITeamRepository teamRepo, 
         ITeamUserRepository teamUserRepo,
         IGenericRepository<Notification> notificationRepo,
         IGenericRepository<User> userRepo,
-        IBaseServices baseServices)
+        IBaseServices baseServices,
+        IHubContext<NotificationHub> hubContext)
     {
         _teamRepo = teamRepo;
         _teamUserRepo = teamUserRepo;
         _notificationRepo = notificationRepo;
         _userRepo = userRepo;
         _baseServices = baseServices;
+        _hubContext = hubContext;
     }
 
     [HttpGet]
@@ -47,7 +52,8 @@ public class TeamController : ControllerBase
             ShortName = t.ShortName,
             SkillLevel = t.SkillLevel,
             ManagerId = t.ManagerId,
-            ManagerName = t.Manager != null ? t.Manager.Name : "Chưa xác định"
+            ManagerName = t.Manager != null ? t.Manager.Name : "Chưa xác định",
+            AverageFairplayScore = t.AverageFairplayScore
         });
 
         return Ok(response);
@@ -71,7 +77,8 @@ public class TeamController : ControllerBase
             ShortName = t.ShortName,
             SkillLevel = t.SkillLevel,
             ManagerId = t.ManagerId,
-            ManagerName = t.Manager != null ? t.Manager.Name : "Chưa xác định"
+            ManagerName = t.Manager != null ? t.Manager.Name : "Chưa xác định",
+            AverageFairplayScore = t.AverageFairplayScore
         });
 
         return Ok(response);
@@ -96,12 +103,13 @@ public class TeamController : ControllerBase
         await _teamRepo.AddAsync(team);
         await _teamRepo.SaveAsync();
 
-        // Tự động gia nhập đội vừa tạo vào danh sách thành viên
+        // Tự động gia nhập đội vừa tạo vào danh sách thành viên, set role là Captain
         var teamUser = new TeamUser
         {
             TeamId = team.Id,
             UserId = userId.Value,
-            Status = "approved"
+            Status = "approved",
+            TeamRole = TeamRole.Captain
         };
         await _teamUserRepo.AddAsync(teamUser);
         await _teamUserRepo.SaveAsync();
@@ -150,6 +158,7 @@ public class TeamController : ControllerBase
 
         await _teamUserRepo.AddAsync(teamUser);
         await _teamUserRepo.SaveAsync();
+        await _hubContext.Clients.Group($"User_{team.ManagerId}").SendAsync("ReceiveNotification");
 
         return Ok(new { message = "Đã gửi bản nháp yêu cầu xin tham gia đội! Vui lòng đợi quản lý phản hồi." });
     }
@@ -168,7 +177,8 @@ public class TeamController : ControllerBase
             ShortName = team.ShortName,
             SkillLevel = team.SkillLevel,
             ManagerId = team.ManagerId,
-            ManagerName = team.Manager != null ? team.Manager.Name : "Chưa xác định"
+            ManagerName = team.Manager != null ? team.Manager.Name : "Chưa xác định",
+            AverageFairplayScore = team.AverageFairplayScore
         });
     }
 
@@ -220,6 +230,7 @@ public class TeamController : ControllerBase
         });
 
         await _teamUserRepo.SaveAsync();
+        await _hubContext.Clients.Group($"User_{userIdToApprove}").SendAsync("ReceiveNotification");
 
         return Ok(new { message = "Ngon! Bạn đã duyệt cầu thủ tham gia Đội bóng." });
     }
@@ -251,6 +262,7 @@ public class TeamController : ControllerBase
             ActionLink = $"/teams/{team.Id}"
         });
         await _teamUserRepo.SaveAsync();
+        await _hubContext.Clients.Group($"User_{userIdToReject}").SendAsync("ReceiveNotification");
 
         return Ok(new { message = "Bạn đã từ chối cầu thủ này" });
     }
@@ -271,8 +283,8 @@ public class TeamController : ControllerBase
         if (userToUpdate == null || userToUpdate.Status != "approved") 
             return BadRequest(new { message = "Thành viên không hợp lệ." });
 
-        if (req.Role != "member" && req.Role != "vice_captain")
-            return BadRequest(new { message = "Role không hợp lệ. Chỉ chấp nhận 'member' hoặc 'vice_captain'." });
+        if (req.Role != TeamRole.Member && req.Role != TeamRole.ViceCaptain)
+            return BadRequest(new { message = "Role không hợp lệ. Chỉ chấp nhận 'Member' (0) hoặc 'ViceCaptain' (1)." });
 
         userToUpdate.TeamRole = req.Role;
         _teamUserRepo.Update(userToUpdate);
@@ -327,7 +339,7 @@ public class TeamController : ControllerBase
         }
         else
         {
-            var viceCaptain = otherMembers.FirstOrDefault(m => m.TeamRole == "vice_captain");
+            var viceCaptain = otherMembers.FirstOrDefault(m => m.TeamRole == TeamRole.ViceCaptain);
             newManagerId = viceCaptain != null ? viceCaptain.UserId : otherMembers.First().UserId;
         }
 
@@ -346,7 +358,7 @@ public class TeamController : ControllerBase
 
 public class UpdateRoleRequest
 {
-    public string Role { get; set; } = "member";
+    public TeamRole Role { get; set; } = TeamRole.Member;
 }
 
 public class LeaveTeamRequest

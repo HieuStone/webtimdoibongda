@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using TimDoiBongDa.Domain.Enums;
 
 namespace TimDoiBongDa.Domain.Entities;
 
@@ -37,8 +38,7 @@ public class Match
     public string PaymentType { get; set; } = "50-50";
 
     [Required]
-    [MaxLength(20)]
-    public string Status { get; set; } = "finding";
+    public MatchStatus Status { get; set; } = MatchStatus.Finding;
 
     public string? Note { get; set; }
 
@@ -48,6 +48,9 @@ public class Match
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    [Timestamp]
+    public byte[]? RowVersion { get; set; }
 
     public ICollection<MatchRequest> Requests { get; set; } = new List<MatchRequest>();
 }

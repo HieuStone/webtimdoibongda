@@ -80,7 +80,8 @@ builder.Services.AddAuthentication(options =>
         {
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
-            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chathub"))
+            if (!string.IsNullOrEmpty(accessToken) && 
+               (path.StartsWithSegments("/chathub") || path.StartsWithSegments("/notificationhub")))
             {
                 context.Token = accessToken;
             }
@@ -109,5 +110,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<TimDoiBongDa.Api.Hubs.ChatHub>("/chathub");
+app.MapHub<TimDoiBongDa.Api.Hubs.NotificationHub>("/notificationhub");
 
 app.Run();
