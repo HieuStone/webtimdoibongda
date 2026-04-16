@@ -12,6 +12,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add controllers and SignalR
 builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR();
 
 // Add DbContext
@@ -95,6 +97,9 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+app.UseSwagger();
+app.UseSwaggerUI();
+
 // Auto-apply EF Core Migrations khi khởi động server
 using (var scope = app.Services.CreateScope())
 {
@@ -103,7 +108,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseCors("AllowAll");
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
 // Pipeline Auth
 app.UseAuthentication();
