@@ -104,7 +104,11 @@ export default function CreateMatchPage() {
     }
 
     try {
-      await api.post('/match', formData);
+      const payload = {
+        ...formData,
+        matchTime: new Date(formData.matchTime).toISOString()
+      };
+      await api.post('/match', payload);
       router.push('/matches');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Lỗi hệ thống khi đăng kèo. Vui lòng check server.');
