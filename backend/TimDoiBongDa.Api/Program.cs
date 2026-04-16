@@ -9,6 +9,7 @@ using TimDoiBongDa.Application.Services;
 using TimDoiBongDa.Infrastructure.Data;
 using TimDoiBongDa.Domain.Entities;
 var builder = WebApplication.CreateBuilder(args);
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 // Add controllers and SignalR
 builder.Services.AddControllers();
@@ -17,9 +18,9 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR();
 
 // Add DbContext
-//var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-//    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+//var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
