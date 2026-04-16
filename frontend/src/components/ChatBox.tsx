@@ -28,7 +28,7 @@ export default function ChatBox({ roomType, roomId }: ChatBoxProps) {
 
   useEffect(() => {
     setMyUserName(localStorage.getItem('userName'));
-    
+
     // Load lịch sử chat cũ
     const fetchHistory = async () => {
       try {
@@ -46,7 +46,7 @@ export default function ChatBox({ roomType, roomId }: ChatBoxProps) {
     if (!token) return;
 
     // Use absolute URL pointing to backend
-    const hubUrl = 'http://localhost:5029/chathub'; 
+    const hubUrl = process.env.NEXT_PUBLIC_SIGNALR_CHATHUB ?? "";
 
     const newConnection = new signalR.HubConnectionBuilder()
       .withUrl(hubUrl, { accessTokenFactory: () => token })
@@ -59,8 +59,8 @@ export default function ChatBox({ roomType, roomId }: ChatBoxProps) {
   useEffect(() => {
     if (connection) {
       connection.on('ReceiveMessage', (msg: ChatMessage) => {
-         setMessages(prev => [...prev, msg]);
-         scrollToBottom();
+        setMessages(prev => [...prev, msg]);
+        scrollToBottom();
       });
 
       connection.start()
@@ -69,7 +69,7 @@ export default function ChatBox({ roomType, roomId }: ChatBoxProps) {
           connection.invoke('JoinRoom', roomType, roomId);
         })
         .catch(e => console.log('Connection failed: ', e));
-        
+
       return () => {
         connection.invoke('LeaveRoom', roomType, roomId).catch(err => console.error(err));
         connection.off('ReceiveMessage');
@@ -80,7 +80,7 @@ export default function ChatBox({ roomType, roomId }: ChatBoxProps) {
 
   const scrollToBottom = () => {
     setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   };
 
@@ -96,8 +96,8 @@ export default function ChatBox({ roomType, roomId }: ChatBoxProps) {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-       e.preventDefault();
-       handleSend();
+      e.preventDefault();
+      handleSend();
     }
   };
 
@@ -106,7 +106,7 @@ export default function ChatBox({ roomType, roomId }: ChatBoxProps) {
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between rounded-t-2xl">
         <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            💬 Phòng Chat {roomType === 'MATCH' ? 'Kèo Đấu' : 'Nội Bộ Đội Bóng'}
+          💬 Phòng Chat {roomType === 'MATCH' ? 'Kèo Đấu' : 'Nội Bộ Đội Bóng'}
         </h3>
         <span className="flex h-2.5 w-2.5 bg-green-500 rounded-full animate-pulse mr-2" title="Real-time Active"></span>
       </div>
@@ -114,21 +114,21 @@ export default function ChatBox({ roomType, roomId }: ChatBoxProps) {
       {/* Messages Window */}
       <div className="flex-1 p-4 overflow-y-auto bg-gray-50/50 space-y-4">
         {messages.length === 0 ? (
-           <div className="text-center text-gray-400 mt-20 italic text-sm">
-              Chưa có tin nhắn nào. Hãy gửi lời chào đầu tiên!
-           </div>
+          <div className="text-center text-gray-400 mt-20 italic text-sm">
+            Chưa có tin nhắn nào. Hãy gửi lời chào đầu tiên!
+          </div>
         ) : (
           messages.map((m, idx) => {
             const isMe = m.senderName === myUserName;
             return (
               <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                 <div className={`max-w-[75%] rounded-2xl px-4 py-2 ${isMe ? 'bg-green-600 text-white rounded-tr-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-tl-sm'}`}>
-                    {!isMe && <div className="text-xs font-bold text-gray-500 mb-1">{m.senderName}</div>}
-                    <div className="text-sm">{m.message}</div>
-                    <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-green-200' : 'text-gray-400'}`}>
-                       {new Date(m.createdAt + (m.createdAt.endsWith('Z') ? '' : 'Z')).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                    </div>
-                 </div>
+                <div className={`max-w-[75%] rounded-2xl px-4 py-2 ${isMe ? 'bg-green-600 text-white rounded-tr-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-tl-sm'}`}>
+                  {!isMe && <div className="text-xs font-bold text-gray-500 mb-1">{m.senderName}</div>}
+                  <div className="text-sm">{m.message}</div>
+                  <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-green-200' : 'text-gray-400'}`}>
+                    {new Date(m.createdAt + (m.createdAt.endsWith('Z') ? '' : 'Z')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
               </div>
             );
           })
@@ -138,23 +138,23 @@ export default function ChatBox({ roomType, roomId }: ChatBoxProps) {
 
       {/* Input Area */}
       <div className="p-3 bg-white rounded-b-2xl border-t border-gray-100">
-         <div className="flex items-center gap-2">
-            <input 
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Nhập tin nhắn..."
-              className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
-            />
-            <button 
-              onClick={handleSend}
-              disabled={!inputText.trim()}
-              className="p-2 bg-green-600 text-white rounded-full hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-               <Send className="w-5 h-5" />
-            </button>
-         </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Nhập tin nhắn..."
+            className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
+          />
+          <button
+            onClick={handleSend}
+            disabled={!inputText.trim()}
+            className="p-2 bg-green-600 text-white rounded-full hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Send className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     </div>
   );
