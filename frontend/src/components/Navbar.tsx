@@ -151,101 +151,104 @@ export default function Navbar() {
             </div>
           </div>
 
-          <div className="hidden sm:flex items-center gap-4">
-            {userName ? (
-              <div className="flex items-center gap-4">
-                
-                {/* Bell Icon */}
-                <div className="relative" ref={notifRef}>
-                  <button 
-                    onClick={() => setShowNotifs(!showNotifs)}
-                    className="relative p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-full transition-colors flex items-center justify-center"
-                  >
-                    <Bell className="w-6 h-6" />
-                    {unreadCount > 0 && (
-                      <span className="absolute top-1 right-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
-                        {unreadCount > 9 ? '9+' : unreadCount}
-                      </span>
-                    )}
-                  </button>
+          <div className="flex items-center gap-2 sm:gap-4">
+            {userName && (
+              /* Bell Icon - visible on both mobile and desktop */
+              <div className="relative" ref={notifRef}>
+                <button 
+                  onClick={() => setShowNotifs(!showNotifs)}
+                  className="relative p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-full transition-colors flex items-center justify-center"
+                >
+                  <Bell className="w-6 h-6" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
 
-                  {/* Dropdown Notifcation */}
-                  {showNotifs && (
-                    <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50">
-                      <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm">
-                        <h3 className="font-bold text-gray-800">Thông báo {unreadCount > 0 && <span className="text-red-500 text-sm ml-1">({unreadCount} mới)</span>}</h3>
-                        {unreadCount > 0 && (
-                          <button onClick={handleReadAll} className="text-xs font-bold text-green-600 hover:text-green-700 flex items-center gap-1 transition-colors">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Đọc tất cả
-                          </button>
-                        )}
-                      </div>
-                      
-                      <div className="max-h-[60vh] overflow-y-auto">
-                        {notifications.length === 0 ? (
-                          <div className="py-8 text-center text-gray-400 flex flex-col items-center gap-2">
-                             <Bell className="w-8 h-8 opacity-20" />
-                             <span className="text-sm font-medium">Bạn chưa có thông báo nào.</span>
-                          </div>
-                        ) : (
-                          <div className="divide-y divide-gray-50">
-                            {notifications.map(n => (
-                              <div 
-                                key={n.id} 
-                                onClick={() => handleRead(n.id, n.actionLink)}
-                                className={`px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors ${!n.isRead ? 'bg-green-50/30' : ''}`}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${!n.isRead ? 'bg-green-500' : 'bg-transparent'}`} />
-                                  <div>
-                                    <p className={`text-sm ${!n.isRead ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
-                                      {n.message}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1 font-medium">
-                                      {new Date(n.createdAt + (n.createdAt.endsWith('Z') ? '' : 'Z')).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
-                                    </p>
-                                  </div>
+                {/* Dropdown Notifcation */}
+                {showNotifs && (
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                    <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm">
+                      <h3 className="font-bold text-gray-800">Thông báo {unreadCount > 0 && <span className="text-red-500 text-sm ml-1">({unreadCount} mới)</span>}</h3>
+                      {unreadCount > 0 && (
+                        <button onClick={handleReadAll} className="text-xs font-bold text-green-600 hover:text-green-700 flex items-center gap-1 transition-colors">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Đọc tất cả
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="max-h-[60vh] overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="py-8 text-center text-gray-400 flex flex-col items-center gap-2">
+                           <Bell className="w-8 h-8 opacity-20" />
+                           <span className="text-sm font-medium">Bạn chưa có thông báo nào.</span>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-gray-50">
+                          {notifications.map(n => (
+                            <div 
+                              key={n.id} 
+                              onClick={() => handleRead(n.id, n.actionLink)}
+                              className={`px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors ${!n.isRead ? 'bg-green-50/30' : ''}`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${!n.isRead ? 'bg-green-500' : 'bg-transparent'}`} />
+                                <div>
+                                  <p className={`text-sm ${!n.isRead ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
+                                    {n.message}
+                                  </p>
+                                  <p className="text-xs text-gray-400 mt-1 font-medium">
+                                    {new Date(n.createdAt + (n.createdAt.endsWith('Z') ? '' : 'Z')).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                                  </p>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200">
-                  <User className="w-4 h-4 text-green-600" />
-                  {userName}
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
-                  title="Đăng xuất"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <Link href="/login" className="text-gray-600 hover:text-green-600 font-medium transition-colors">
-                  Đăng nhập
-                </Link>
-                <Link href="/register" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full font-medium shadow-sm hover:shadow transition-all">
-                  Tạo tài khoản
-                </Link>
+                  </div>
+                )}
               </div>
             )}
-          </div>
 
-          <div className="flex items-center sm:hidden">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-gray-500 hover:text-gray-700 p-2"
-            >
-              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
+            <div className="hidden sm:flex items-center gap-4">
+              {userName ? (
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200">
+                    <User className="w-4 h-4 text-green-600" />
+                    {userName}
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                    title="Đăng xuất"
+                  >
+                    <LogOut className="w-5 h-5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Link href="/login" className="text-gray-600 hover:text-green-600 font-medium transition-colors">
+                    Đăng nhập
+                  </Link>
+                  <Link href="/register" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full font-medium shadow-sm hover:shadow transition-all">
+                    Tạo tài khoản
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center sm:hidden">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="text-gray-500 hover:text-gray-700 p-2"
+              >
+                {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
           </div>
         </div>
       </div>

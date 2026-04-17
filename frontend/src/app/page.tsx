@@ -1,8 +1,12 @@
+'use client';
 import Link from "next/link";
 import { ArrowRight, Calendar, Search, Users } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function Home() {
+  const { user } = useCurrentUser();
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800">
       <Navbar />
@@ -18,10 +22,16 @@ export default function Home() {
               Nơi giao lưu, kết nối các đội bóng phủi chất lượng. Đăng ký để tổ chức đá tập hoặc ghép kèo với hàng ngàn Đội Bóng trong khu vực.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Link href="/login" className="px-8 py-4 bg-green-500 hover:bg-green-400 text-white rounded-full font-bold text-lg flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+              <Link 
+                href={user ? "/matches/newfeed" : "/login"} 
+                className="px-8 py-4 bg-green-500 hover:bg-green-400 text-white rounded-full font-bold text-lg flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transition-all hover:scale-105"
+              >
                 Cáp Kèo Ngay <ArrowRight className="w-5 h-5" />
               </Link>
-              <Link href="/register" className="px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur text-white border border-white/20 rounded-full font-bold text-lg transition-colors">
+              <Link 
+                href={user ? "/matches/newfeed" : "/register"} 
+                className="px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur text-white border border-white/20 rounded-full font-bold text-lg transition-colors text-center"
+              >
                 Trở thành Lính đánh thuê
               </Link>
             </div>
