@@ -77,10 +77,10 @@ public class AuthController : ControllerBase
         //var appId = facebookSettings["AppId"];
         //var appSecret = facebookSettings["AppSecret"];
 
-        if (string.IsNullOrEmpty(appId) || string.IsNullOrEmpty(appSecret))
-        {
-            return StatusCode(500, new { message = "Cấu hình Facebook chưa hoàn chỉnh trên server." });
-        }
+        //if (string.IsNullOrEmpty(appId) || string.IsNullOrEmpty(appSecret))
+        //{
+        //    return StatusCode(500, new { message = "Cấu hình Facebook chưa hoàn chỉnh trên server." });
+        //}
 
         var client = _httpClientFactory.CreateClient();
         
