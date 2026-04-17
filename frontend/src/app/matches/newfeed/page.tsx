@@ -9,6 +9,7 @@ import { getFairplayRankLabel, getFairplayRankStyle } from '@/app/teams/_variabl
 import * as signalR from '@microsoft/signalr';
 import Link from 'next/link';
 import { MatchStatus } from '../_variable/MatchStatus';
+import { formatViDateTime } from '@/lib/dateUtils';
 
 interface Match {
   id: number;
@@ -308,7 +309,7 @@ export default function NewfeedPage() {
                       </div>
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
                         <Calendar className="w-4 h-4 text-gray-400" />
-                        <span className="font-medium truncate">{new Date(match.matchTime).toLocaleString('vi-VN')}</span>
+                        <span className="font-medium truncate">{formatViDateTime(match.matchTime)}</span>
                       </div>
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
                         <span className="w-4 h-4 flex justify-center items-center font-bold text-gray-400">💰</span>

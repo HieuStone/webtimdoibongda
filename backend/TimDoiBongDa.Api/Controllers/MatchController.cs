@@ -841,7 +841,7 @@ public class MatchController : ControllerBase
                 await _notificationRepo.AddAsync(new Notification
                 {
                     UserId = homeMatch.CreatorTeam.ManagerId,
-                    Message = $"Hệ thống tự động ghép đội {awayMatch.CreatorTeam?.Name} làm đối thủ cho kèo của bạn.",
+                    Message = $"Hệ thống tự động ghép đội {awayMatch.CreatorTeam?.Name} làm đối thủ cho kèo ngày {homeMatch.MatchTime:HH:mm dd/MM} của bạn.",
                     ActionLink = $"/matches/{homeMatch.Id}"
                 });
             }

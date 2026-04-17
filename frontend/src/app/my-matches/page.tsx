@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { MatchStatus } from '../matches/_variable/MatchStatus';
+import { formatViDateTime, formatViTime } from '@/lib/dateUtils';
 
 interface Match {
   id: number;
@@ -258,7 +259,7 @@ export default function MyMatchesPage() {
     try {
       await api.post('/attendance/session', {
         teamId: Number(createParams.teamId),
-        targetDate: new Date(createParams.targetDate).toISOString(),
+        targetDate: createParams.targetDate,
         title: createParams.title,
         matchId: null
       });
@@ -469,7 +470,7 @@ export default function MyMatchesPage() {
                             {m.status === MatchStatus.Finished && m.creatorScore != null && (
                               <div className="text-center font-black text-base mt-1">{m.creatorScore} – {m.opponentScore}</div>
                             )}
-                            <div className="opacity-70 mt-0.5 font-normal">{new Date(m.matchTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+                            <div className="opacity-70 mt-0.5 font-normal">{formatViTime(m.matchTime)}</div>
                           </div>
                         );
                         return m.status !== MatchStatus.Cancelled ? (
@@ -481,7 +482,7 @@ export default function MyMatchesPage() {
                       {daySessions.filter(s => !s.matchId).map(s => (
                         <div key={`sw-${s.id}`} onClick={() => setAttendanceModal(s)} className="rounded-lg p-2 text-[11px] font-bold border cursor-pointer hover:bg-purple-100 transition-colors mb-1 bg-purple-50 text-purple-700 border-purple-200">
                            <div className="truncate">📋 {s.title}</div>
-                           <div className="opacity-70 font-normal">{new Date(s.targetDate).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+                           <div className="opacity-70 font-normal">{formatViTime(s.targetDate)}</div>
                         </div>
                       ))}
                     </div>
@@ -680,7 +681,7 @@ function AttendanceCard({ session, onVote }: { session: AttendanceSession; onVot
         </span>
       </div>
       <div className="text-xs text-gray-400 mb-2">
-        <div>🕐 {targetDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+        <div>🕐 {formatViTime(session.targetDate)}</div>
       </div>
       <div className="flex gap-2">
         <button onClick={onVote} className="flex-1 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs rounded-lg transition-colors">
@@ -721,7 +722,7 @@ function MatchCard({ match, session, compact = false, onEnterScore, onVoteAttend
 
       {!compact && (
         <div className="text-xs text-gray-400 mt-1 space-y-0.5">
-          <div>🕐 {matchTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+          <div>🕐 {formatViTime(match.matchTime)}</div>
           {match.stadiumName && <div>📍 {match.stadiumName}</div>}
           <div>⚽ Sân {match.matchType} | 💰 {match.paymentType}</div>
         </div>

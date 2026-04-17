@@ -9,6 +9,7 @@ import { getFairplayRankLabel, getFairplayRankStyle } from '@/app/teams/_variabl
 import Link from 'next/link';
 import * as signalR from '@microsoft/signalr';
 import { MatchStatus } from '../_variable/MatchStatus';
+import { formatViDateTime } from '@/lib/dateUtils';
 
 interface Match {
   id: number;
@@ -321,7 +322,7 @@ export default function MyMatchPage() {
                     </div>
                     <div className="space-y-2 mb-6 text-sm text-gray-600">
                       {match.isHomeMatch ? <div className="flex items-center gap-2"><MapPin className="w-4 h-4 opacity-40" /> {match.stadiumName}</div> : <div className="flex items-center gap-2">Chưa có sân</div>}
-                      <div className="flex items-center gap-2"><Calendar className="w-4 h-4 opacity-40" /> {new Date(match.matchTime).toLocaleString('vi-VN')}</div>
+                      <div className="flex items-center gap-2"><Calendar className="w-4 h-4 opacity-40" /> {formatViDateTime(match.matchTime)}</div>
                     </div>
                     <div className="flex gap-2 pt-4 border-t border-gray-50">
                       <Link href={`/matches/${match.id}`} className="flex-1 py-2 text-center bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs transition-colors">
@@ -381,7 +382,7 @@ export default function MyMatchPage() {
                     </div>
                     <div className="space-y-2 mb-6 text-sm text-gray-600">
                       {match.isHomeMatch ? <div className="flex items-center gap-2"><MapPin className="w-4 h-4 opacity-40" /> {match.stadiumName}</div> : <div className="flex items-center gap-2">Chưa có sân</div>}
-                      <div className="flex items-center gap-2"><Calendar className="w-4 h-4 opacity-40" /> {new Date(match.matchTime).toLocaleString('vi-VN')}</div>
+                      <div className="flex items-center gap-2"><Calendar className="w-4 h-4 opacity-40" /> {formatViDateTime(match.matchTime)}</div>
                     </div>
                     <Link href={`/matches/${match.id}`} className="block w-full py-2 text-center bg-emerald-50 text-emerald-700 font-bold rounded-lg text-xs">
                       Chi Tiết

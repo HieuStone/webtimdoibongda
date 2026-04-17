@@ -6,6 +6,7 @@ import { LogOut, User, Menu, X, Activity, Users, MapPin, CalendarDays, Bell, Che
 import api from '@/lib/api';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import * as signalR from '@microsoft/signalr';
+import { formatViDateTime } from '@/lib/dateUtils';
 
 interface NotificationItem {
   id: number;
@@ -204,7 +205,7 @@ export default function Navbar() {
                                     {n.message}
                                   </p>
                                   <p className="text-xs text-gray-400 mt-1 font-medium">
-                                    {new Date(n.createdAt + (n.createdAt.endsWith('Z') ? '' : 'Z')).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                                    {formatViDateTime(n.createdAt)}
                                   </p>
                                 </div>
                               </div>

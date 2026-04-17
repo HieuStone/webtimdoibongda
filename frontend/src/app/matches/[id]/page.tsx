@@ -8,6 +8,7 @@ import Link from 'next/link';
 import ChatBox from '@/components/ChatBox';
 import { LevelTeam } from '@/app/teams/_variables/LevelTeam';
 import { MatchStatus } from '../_variable/MatchStatus';
+import { formatViDateTime } from '@/lib/dateUtils';
 
 export default function MatchDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -51,8 +52,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
 
         // Load danh sách đội chưa có kèo vào ngày match này (cho dropdown xin kèo)
         try {
-          const matchTime = new Date(matchRes.data.matchTime);
-          const dateStr = matchTime.toISOString().split('T')[0];
+          const dateStr = matchRes.data.matchTime.split('T')[0];
           const availRes = await api.get(`/match/my-available-teams?date=${dateStr}`);
           setAvailableTeams(availRes.data);
         } catch (e) {
@@ -186,7 +186,7 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
               <h1 className="text-2xl md:text-3xl font-bold mb-2">{matchData.creatorTeamName} đang rủ đá giao lưu</h1>
               <div className="flex flex-col sm:flex-row gap-4 mt-4 font-medium text-emerald-100">
                 <div className="flex items-center justify-center md:justify-start gap-2"><MapPin className="w-5 h-5" /> {matchData.stadiumName || 'Chưa có sân'}</div>
-                <div className="flex items-center justify-center md:justify-start gap-2"><Calendar className="w-5 h-5" /> {new Date(matchData.matchTime).toLocaleString('vi-VN')}</div>
+                <div className="flex items-center justify-center md:justify-start gap-2"><Calendar className="w-5 h-5" /> {formatViDateTime(matchData.matchTime)}</div>
               </div>
             </div>
           </div>

@@ -6,6 +6,7 @@ import { Activity, MapPin, Trophy, ArrowLeft, Loader2, Calendar, PlayCircle } fr
 import api from '@/lib/api';
 import Link from 'next/link';
 import { LevelTeam } from '@/app/teams/_variables/LevelTeam';
+import { formatViDateTime } from '@/lib/dateUtils';
 
 interface Area { id: number; name: string; city: string; }
 interface Team { id: number; name: string; managerId: number; teamRole?: number; }
@@ -106,7 +107,7 @@ export default function CreateMatchPage() {
     try {
       const payload = {
         ...formData,
-        matchTime: new Date(formData.matchTime).toISOString()
+        matchTime: formData.matchTime
       };
       await api.post('/match', payload);
       router.push('/matches');
@@ -262,7 +263,7 @@ export default function CreateMatchPage() {
                   {/* Preview thời gian đã chọn */}
                   {formData.matchTime && (
                     <p className="mt-2 text-xs text-emerald-700 font-semibold bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 inline-flex items-center gap-1.5">
-                      ✅ Đã chọn: {new Date(formData.matchTime).toLocaleString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+                      ✅ Đã chọn: {formatViDateTime(formData.matchTime)}
                     </p>
                   )}
                 </div>
