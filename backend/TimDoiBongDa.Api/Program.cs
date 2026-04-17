@@ -16,6 +16,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR();
+builder.Services.AddHttpClient();
 
 // Add DbContext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")

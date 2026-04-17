@@ -17,11 +17,13 @@ public class AuthController : ControllerBase
 {
     private readonly IGenericRepository<User> _userRepo;
     private readonly IConfiguration _config;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public AuthController(IGenericRepository<User> userRepo, IConfiguration config)
+    public AuthController(IGenericRepository<User> userRepo, IConfiguration config, IHttpClientFactory httpClientFactory)
     {
         _userRepo = userRepo;
         _config = config;
+        _httpClientFactory = httpClientFactory;
     }
 
     [HttpPost("register")]
@@ -41,7 +43,7 @@ public class AuthController : ControllerBase
             Role = "player" // Tài khoản đăng ký mặc định là player
         };
 
-        _userRepo.AddAsync(user);
+        await _userRepo.AddAsync(user);
         await _userRepo.SaveAsync();
 
         return Ok(new { message = "Đăng ký thành công!" });
@@ -66,6 +68,128 @@ public class AuthController : ControllerBase
             Name = user.Name,
             Role = user.Role
         });
+    }
+
+    [HttpPost("facebook-login")]
+    public async Task<IActionResult> FacebookLogin([FromBody] FacebookLoginRequest request)
+    {
+        //var facebookSettings = _config.GetSection("Facebook");
+        //var appId = facebookSettings["AppId"];
+        //var appSecret = facebookSettings["AppSecret"];
+
+        if (string.IsNullOrEmpty(appId) || string.IsNullOrEmpty(appSecret))
+        {
+            return StatusCode(500, new { message = "Cấu hình Facebook chưa hoàn chỉnh trên server." });
+        }
+
+        var client = _httpClientFactory.CreateClient();
+        
+        // 1. Validate token với Facebook (Security check)
+        // Link: https://developers.facebook.com/docs/facebook-login/guides/access-tokens/debugging/
+        //var debugTokenUrl = $"https://graph.facebook.com/debug_token?input_token={request.AccessToken}&access_token={appId}|{appSecret}";
+        //var debugResponse = await client.GetAsync(debugTokenUrl);
+        
+        //if (!debugResponse.IsSuccessStatusCode)
+        //{
+        //    return BadRequest(new { message = "Token Facebook không hợp lệ." });
+        //}
+
+        //var debugData = await debugResponse.Content.ReadFromJsonAsync<FacebookDebugTokenResponse>();
+        //if (debugData?.Data == null || !debugData.Data.IsValid || debugData.Data.AppId != appId)
+        //{
+        //    return BadRequest(new { message = "Xác thực token Facebook thất bại." });
+        //}
+
+        // 2. Lấy thông tin user
+        var fbResponse = await client.GetAsync($"https://graph.facebook.com/me?fields=id,name,email,picture&access_token={request.AccessToken}");
+
+        if (!fbResponse.IsSuccessStatusCode)
+        {
+            return BadRequest(new { message = "Không thể lấy thông tin từ Facebook." });
+        }
+
+        var fbUser = await fbResponse.Content.ReadFromJsonAsync<FacebookUserData>();
+        if (fbUser == null || string.IsNullOrEmpty(fbUser.Id))
+        {
+            return BadRequest(new { message = "Dữ liệu Facebook không hợp lệ." });
+        }
+
+        // Tìm user theo FacebookId hoặc Email
+        var user = await _userRepo.Find(u => u.FacebookId == fbUser.Id || (fbUser.Email != null && u.Email == fbUser.Email))
+            .FirstOrDefaultAsync();
+
+        if (user == null)
+        {
+            // Nếu không tìm thấy, tạo user mới
+            user = new User
+            {
+                Name = fbUser.Name,
+                Email = fbUser.Email ?? $"{fbUser.Id}@facebook.com",
+                FacebookId = fbUser.Id,
+                Avatar = fbUser.Picture?.Data?.Url,
+                Role = "player",
+                Password = null
+            };
+
+            await _userRepo.AddAsync(user);
+            await _userRepo.SaveAsync();
+        }
+        else if (string.IsNullOrEmpty(user.FacebookId))
+        {
+            // Nếu tìm thấy theo email nhưng chưa có FacebookId, thì liên kết tài khoản
+            user.FacebookId = fbUser.Id;
+            if (string.IsNullOrEmpty(user.Avatar))
+            {
+                user.Avatar = fbUser.Picture?.Data?.Url;
+            }
+            _userRepo.Update(user);
+            await _userRepo.SaveAsync();
+        }
+
+        var token = GenerateJwtToken(user);
+
+        return Ok(new AuthResponse
+        {
+            Token = token,
+            UserId = user.Id,
+            Name = user.Name,
+            Role = user.Role
+        });
+    }
+
+    private class FacebookDebugTokenResponse
+    {
+        public FacebookDebugTokenData? Data { get; set; }
+    }
+
+    private class FacebookDebugTokenData
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("app_id")]
+        public string? AppId { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("is_valid")]
+        public bool IsValid { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("user_id")]
+        public string? UserId { get; set; }
+    }
+
+    private class FacebookUserData
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public FacebookPicture? Picture { get; set; }
+    }
+
+    private class FacebookPicture
+    {
+        public FacebookPictureData? Data { get; set; }
+    }
+
+    private class FacebookPictureData
+    {
+        public string? Url { get; set; }
     }
 
     [Authorize]

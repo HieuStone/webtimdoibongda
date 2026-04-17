@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TimDoiBongDa.Domain.Entities;
@@ -20,8 +20,10 @@ public class User
     [MaxLength(20)]
     public string? Phone { get; set; }
 
-    [Required]
-    public string Password { get; set; } = string.Empty;
+    public string? Password { get; set; }
+
+    [MaxLength(100)]
+    public string? FacebookId { get; set; }
 
     [MaxLength(255)]
     public string? Avatar { get; set; }

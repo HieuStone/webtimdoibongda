@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace TimDoiBongDa.Application.DTOs.AuthDtos;
 
@@ -27,6 +27,12 @@ public class LoginRequest
 
     [Required]
     public string Password { get; set; } = string.Empty;
+}
+
+public class FacebookLoginRequest
+{
+    [Required]
+    public string AccessToken { get; set; } = string.Empty;
 }
 
 public class AuthResponse

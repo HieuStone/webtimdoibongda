@@ -5,6 +5,14 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { LogIn, Mail, Lock } from 'lucide-react';
+import { useEffect } from 'react';
+import { facebookLogin, initFacebookSDK } from '@/lib/facebook-sdk';
+
+const FacebookIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+  </svg>
+);
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +20,35 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    initFacebookSDK();
+  }, []);
+
+  const handleFacebookLogin = async () => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const authResponse = await facebookLogin();
+      const response = await api.post('/auth/facebook-login', { 
+        accessToken: authResponse.accessToken 
+      });
+      const { token, name } = response.data;
+      
+      localStorage.setItem('token', token);
+      localStorage.setItem('userName', name);
+      
+      router.push('/');
+    } catch (err: any) {
+      setError(err === 'User cancelled login or did not fully authorize.' 
+        ? 'Bạn đã hủy đăng nhập Facebook.' 
+        : 'Đăng nhập Facebook thất bại. Vui lòng thử lại.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +136,25 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        <div className="relative my-8">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-gray-500 font-medium">Hoặc đăng nhập bằng</span>
+          </div>
+        </div>
+
+        <button
+          onClick={handleFacebookLogin}
+          type="button"
+          disabled={loading}
+          className="w-full py-3 px-4 bg-[#1877F2] hover:bg-[#166fe5] text-white font-semibold rounded-xl shadow-md transition-colors disabled:opacity-70 flex justify-center items-center gap-2"
+        >
+          <FacebookIcon />
+          Tiếp tục với Facebook
+        </button>
 
         <p className="mt-8 text-center text-sm text-gray-600">
           Chưa có đội/tài khoản?{' '}
