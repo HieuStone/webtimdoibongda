@@ -10,12 +10,14 @@ namespace TimDoiBongDa.Application.Mappings
         public MappingProfile()
         {
             CreateMap<Match, MatchResponse>()
-                .ForMember(dest => dest.CreatorTeamName, opt => opt.MapAtRuntime()) // These are often handled by Include or specific logic
-                .ForMember(dest => dest.OpponentTeamName, opt => opt.MapAtRuntime())
+                .ForMember(dest => dest.CreatorTeamName, opt => opt.MapFrom(src => src.CreatorTeam != null ? src.CreatorTeam.Name : "N/A"))
+                .ForMember(dest => dest.OpponentTeamName, opt => opt.MapFrom(src => src.OpponentTeam != null ? src.OpponentTeam.Name : null))
+                .ForMember(dest => dest.CreatorAvatar, opt => opt.MapFrom(src => (src.CreatorTeam != null && src.CreatorTeam.Manager != null) ? src.CreatorTeam.Manager.Avatar : null))
                 .ForMember(dest => dest.CreatorFairplayScore, opt => opt.MapFrom(src => src.CreatorTeam != null ? src.CreatorTeam.AverageFairplayScore : null));
 
-            // Add other maps as needed
-            CreateMap<Team, TeamResponse>();
+            CreateMap<Team, TeamResponse>()
+                .ForMember(dest => dest.ManagerName, opt => opt.MapFrom(src => src.Manager != null ? src.Manager.Name : "N/A"))
+                .ForMember(dest => dest.ManagerAvatar, opt => opt.MapFrom(src => src.Manager != null ? src.Manager.Avatar : null));
             CreateMap<Notification, object>(); // Placeholder
         }
     }

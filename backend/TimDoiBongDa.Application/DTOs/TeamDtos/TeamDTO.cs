@@ -23,5 +23,6 @@ public class TeamResponse
     public int SkillLevel { get; set; }
     public long ManagerId { get; set; }
     public string ManagerName { get; set; } = string.Empty;
+    public string? ManagerAvatar { get; set; }
     public double? AverageFairplayScore { get; set; }
 }

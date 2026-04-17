@@ -255,7 +255,8 @@ public class MatchController : ControllerBase
             SkillRequirement = match.SkillRequirement,
             PaymentType = match.PaymentType ?? "",
             Status = match.Status,
-            Note = match.Note
+            Note = match.Note,
+            CreatorAvatar = match.CreatorTeam?.Manager?.Avatar
         });
     }
 
@@ -278,6 +279,7 @@ public class MatchController : ControllerBase
             SkillLevelText = r.RequestingTeam != null && skillLabels.ContainsKey(r.RequestingTeam.SkillLevel)
                 ? skillLabels[r.RequestingTeam.SkillLevel] : "Chưa rõ",
             AvgRating = r.RequestingTeam?.AverageFairplayScore.HasValue == true ? Math.Round(r.RequestingTeam.AverageFairplayScore.Value, 1) : (double?)null,
+            Avatar = r.RequestingTeam?.Manager?.Avatar,
             Status = r.Status,
             Message = r.Message
         });

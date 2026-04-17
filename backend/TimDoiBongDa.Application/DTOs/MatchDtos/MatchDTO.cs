@@ -41,6 +41,7 @@ public class MatchResponse
     public int? CreatorScore { get; set; }
     public int? OpponentScore { get; set; }
     public long? OpponentTeamId { get; set; }
+    public string? CreatorAvatar { get; set; }
     public double? CreatorFairplayScore { get; set; }
 }
 

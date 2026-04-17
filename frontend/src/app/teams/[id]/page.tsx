@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
-import { Shield, ArrowLeft, CheckCircle, Clock, Loader2, User, LogOut, Crown, UserMinus } from 'lucide-react';
+import { Shield, ArrowLeft, CheckCircle, Clock, Loader2, User, LogOut, Crown, UserMinus, XCircle } from 'lucide-react';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -62,6 +62,19 @@ export default function TeamDetailsPage({ params }: { params: Promise<{ id: stri
       setMembers(members.map(m => m.userId === userId ? { ...m, status: 'rejected' } : m));
     } catch (err: any) {
       alert(err.response?.data?.message || 'Lỗi khi từ chối.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleKick = async (userId: number, userName: string) => {
+    if (!confirm(`Bạn có chắc chắn muốn mời cầu thủ ${userName} rời khỏi đội?`)) return;
+    setActionLoading(userId);
+    try {
+      await api.delete(`/team/${id}/members/${userId}`);
+      setMembers(members.filter(m => m.userId !== userId));
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Lỗi khi kích thành viên.');
     } finally {
       setActionLoading(null);
     }
@@ -178,7 +191,11 @@ export default function TeamDetailsPage({ params }: { params: Promise<{ id: stri
               {pendingMembers.map(req => (
                 <div key={req.userId} className="flex flex-col sm:flex-row items-center justify-between bg-white p-4 rounded-xl border border-orange-200 shadow-sm gap-4">
                   <div className="flex items-center gap-3">
-                    <User className="w-10 h-10 text-orange-500 bg-orange-100 rounded-full p-2" />
+                    {req.avatar ? (
+                      <img src={req.avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover shadow-sm ring-2 ring-orange-100" />
+                    ) : (
+                      <User className="w-10 h-10 text-orange-500 bg-orange-100 rounded-full p-2" />
+                    )}
                     <div>
                       <p className="font-bold text-gray-800 text-lg">{req.name}</p>
                       <p className="text-sm text-gray-500">{req.email}</p>
@@ -214,8 +231,14 @@ export default function TeamDetailsPage({ params }: { params: Promise<{ id: stri
               {approvedMembers.map(mem => (
                 <div key={mem.userId} className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-4 rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all group gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform">
-                      <User className="w-6 h-6" />
+                    <div className="w-14 h-14 rounded-full overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform">
+                      {mem.avatar ? (
+                        <img src={mem.avatar} alt="Avatar" className="w-full h-full object-cover shadow-sm ring-2 ring-blue-50" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center text-blue-600">
+                           <User className="w-6 h-6" />
+                        </div>
+                      )}
                     </div>
                     <div>
                       <p className="font-bold text-gray-900 text-lg flex items-center gap-2">
@@ -227,8 +250,8 @@ export default function TeamDetailsPage({ params }: { params: Promise<{ id: stri
                     </div>
                   </div>
 
-                  {isManager && mem.userId !== team.managerId && (
-                    <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                    {isManager && mem.userId !== team.managerId && (
+                    <div className="flex flex-wrap gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                       {mem.teamRole !== 'vice_captain' ? (
                         <button
                           onClick={() => handleAssignRole(mem.userId, 'vice_captain')}
@@ -246,6 +269,14 @@ export default function TeamDetailsPage({ params }: { params: Promise<{ id: stri
                           {actionLoading === mem.userId * 10 ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserMinus className="w-3 h-3" />} Hủy Đội Phó
                         </button>
                       )}
+                      
+                      <button
+                        onClick={() => handleKick(mem.userId, mem.name)}
+                        disabled={actionLoading === mem.userId}
+                        className="w-full sm:w-auto text-xs px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 font-semibold rounded-lg transition-colors border border-red-100 flex items-center justify-center gap-1"
+                      >
+                        {actionLoading === mem.userId ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />} Khai Trừ
+                      </button>
                     </div>
                   )}
                 </div>
@@ -273,8 +304,14 @@ export default function TeamDetailsPage({ params }: { params: Promise<{ id: stri
                     className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedNewManagerId === m.userId ? 'border-blue-500 bg-blue-50' : 'border-transparent bg-white hover:border-blue-300 shadow-sm'
                       }`}
                   >
-                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0">
-                      <User className="w-5 h-5" />
+                    <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0">
+                      {m.avatar ? (
+                        <img src={m.avatar} alt="Avatar" className="w-full h-full object-cover shadow-sm ring-1 ring-blue-100" />
+                      ) : (
+                        <div className="w-full h-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                          <User className="w-5 h-5" />
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-gray-900 truncate">{m.name}</p>

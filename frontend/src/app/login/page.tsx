@@ -34,10 +34,11 @@ export default function LoginPage() {
       const response = await api.post('/auth/facebook-login', { 
         accessToken: authResponse.accessToken 
       });
-      const { token, name } = response.data;
+      const { token, name, avatar } = response.data;
       
       localStorage.setItem('token', token);
       localStorage.setItem('userName', name);
+      if (avatar) localStorage.setItem('userAvatar', avatar);
       
       router.push('/');
     } catch (err: any) {
@@ -57,10 +58,11 @@ export default function LoginPage() {
 
     try {
       const response = await api.post('/auth/login', { email, password });
-      const { token, name } = response.data;
+      const { token, name, avatar } = response.data;
       
       localStorage.setItem('token', token);
       localStorage.setItem('userName', name);
+      if (avatar) localStorage.setItem('userAvatar', avatar);
       
       router.push('/');
     } catch (err: any) {

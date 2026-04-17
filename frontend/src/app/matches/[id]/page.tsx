@@ -169,9 +169,13 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
               <Activity className="w-64 h-64" />
             </div>
 
-            <div className="w-24 h-24 bg-white/20 rounded-full flex justify-center items-center text-4xl shadow-inner border-2 border-white/50 backdrop-blur relative z-10 shrink-0">
-              ⚔️
-            </div>
+            {matchData.creatorAvatar ? (
+              <img src={matchData.creatorAvatar} alt="Creator" className="w-24 h-24 rounded-full object-cover shadow-inner border-2 border-white/50 backdrop-blur relative z-10 shrink-0" />
+            ) : (
+              <div className="w-24 h-24 bg-white/20 rounded-full flex justify-center items-center text-4xl shadow-inner border-2 border-white/50 backdrop-blur relative z-10 shrink-0">
+                ⚔️
+              </div>
+            )}
               <div className="relative z-10 flex-1">
                 <div className="inline-block bg-emerald-900/50 text-emerald-100 px-3 py-1 rounded-full text-xs font-bold mb-3 border border-emerald-500/30 uppercase tracking-wider">
                   Status: {matchData.status === MatchStatus.Finding ? 'Đang Tìm Kèo' : 'Đã Chốt Đối Thủ'}
@@ -324,7 +328,11 @@ export default function MatchDetailsPage({ params }: { params: Promise<{ id: str
                     <div key={req.id} className="bg-white p-5 rounded-2xl border border-orange-200 shadow-sm hover:shadow-md transition-shadow">
                       {/* Hàng trên: avatar + tên + trình độ + rating */}
                       <div className="flex items-start gap-4 mb-4">
-                        <div className="w-14 h-14 bg-orange-100 rounded-full flex justify-center items-center text-3xl shadow-sm border border-orange-200 shrink-0">🛡️</div>
+                        {req.avatar ? (
+                          <img src={req.avatar} alt="Manager" className="w-14 h-14 rounded-full object-cover shadow-sm border border-orange-200 shrink-0" />
+                        ) : (
+                          <div className="w-14 h-14 bg-orange-100 rounded-full flex justify-center items-center text-3xl shadow-sm border border-orange-200 shrink-0">🛡️</div>
+                        )}
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-gray-800 text-xl leading-tight">{req.teamName}</p>
                           <div className="flex flex-wrap items-center gap-2 mt-2">

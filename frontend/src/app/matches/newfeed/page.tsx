@@ -22,6 +22,7 @@ interface Match {
   paymentType: string;
   status: number;
   isHomeMatch: boolean;
+  creatorAvatar: string | null;
   creatorFairplayScore?: number | null;
 }
 
@@ -277,7 +278,11 @@ export default function NewfeedPage() {
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-xl">🛡️</div>
+                        {match.creatorAvatar ? (
+                          <img src={match.creatorAvatar} alt="Team Manager" className="w-12 h-12 rounded-full object-cover shadow-sm ring-2 ring-green-100" />
+                        ) : (
+                          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-xl">🛡️</div>
+                        )}
                         <div>
                           <h3 className="font-bold text-lg text-gray-900 truncate w-32 md:w-40">{match.creatorTeamName}</h3>
                           <p className="text-sm text-green-600 font-medium">Trình độ: {formatSkill(match.skillRequirement)}</p>

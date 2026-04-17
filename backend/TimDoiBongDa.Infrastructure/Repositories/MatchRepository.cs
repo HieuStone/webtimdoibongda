@@ -16,6 +16,7 @@ public class MatchRepository : GenericRepository<Match>, IMatchRepository
     {
         return await _dbSet
             .Include(m => m.CreatorTeam)
+                .ThenInclude(t => t.Manager)
             .Include(m => m.OpponentTeam)
             .FirstOrDefaultAsync(m => m.Id == id);
     }

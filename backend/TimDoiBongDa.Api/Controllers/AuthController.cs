@@ -66,7 +66,8 @@ public class AuthController : ControllerBase
             Token = token,
             UserId = user.Id,
             Name = user.Name,
-            Role = user.Role
+            Role = user.Role,
+            Avatar = user.Avatar
         });
     }
 
@@ -153,7 +154,8 @@ public class AuthController : ControllerBase
             Token = token,
             UserId = user.Id,
             Name = user.Name,
-            Role = user.Role
+            Role = user.Role,
+            Avatar = user.Avatar
         });
     }
 

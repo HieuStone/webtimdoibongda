@@ -16,6 +16,7 @@ public class MatchRequestRepository : GenericRepository<MatchRequest>, IMatchReq
     {
         return await _dbSet
             .Include(r => r.RequestingTeam)
+                .ThenInclude(t => t.Manager)
             .Where(r => r.MatchId == matchId)
             .ToListAsync();
     }

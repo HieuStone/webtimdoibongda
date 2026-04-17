@@ -18,6 +18,7 @@ interface NotificationItem {
 export default function Navbar() {
   const router = useRouter();
   const [userName, setUserName] = useState<string | null>(null);
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Notifications state
@@ -39,6 +40,7 @@ export default function Navbar() {
 
   useEffect(() => {
     setUserName(localStorage.getItem('userName'));
+    setUserAvatar(localStorage.getItem('userAvatar'));
     fetchNotifications();
 
     // Polling mỗi 30 giây (backup)
@@ -116,7 +118,9 @@ export default function Navbar() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userName');
+    localStorage.removeItem('userAvatar');
     setUserName(null);
+    setUserAvatar(null);
     router.push('/login');
   };
 
@@ -217,8 +221,12 @@ export default function Navbar() {
             <div className="hidden sm:flex items-center gap-4">
               {userName ? (
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200">
-                    <User className="w-4 h-4 text-green-600" />
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-gray-50 p-1.5 pr-3 rounded-full border border-gray-200">
+                    {userAvatar ? (
+                      <img src={userAvatar} alt="Avatar" className="w-6 h-6 rounded-full object-cover shadow-sm ring-1 ring-gray-200" />
+                    ) : (
+                      <User className="w-4 h-4 text-green-600" />
+                    )}
                     {userName}
                   </div>
                   <button
@@ -262,8 +270,14 @@ export default function Navbar() {
             {userName ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-3 px-3">
-                  <div className="bg-green-100 p-2 rounded-full">
-                    <User className="w-5 h-5 text-green-600" />
+                  <div className="p-0.5 rounded-full overflow-hidden flex items-center justify-center">
+                    {userAvatar ? (
+                      <img src={userAvatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover shadow-sm ring-2 ring-green-100" />
+                    ) : (
+                      <div className="bg-green-100 p-2 rounded-full">
+                        <User className="w-5 h-5 text-green-600" />
+                      </div>
+                    )}
                   </div>
                   <div className="font-medium text-gray-800">{userName}</div>
                 </div>

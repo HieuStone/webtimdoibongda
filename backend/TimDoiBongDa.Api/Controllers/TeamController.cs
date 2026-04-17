@@ -193,6 +193,7 @@ public class TeamController : ControllerBase
             Name = tu.User?.Name,
             Email = tu.User?.Email,
             Role = tu.User?.Role,
+            Avatar = tu.User?.Avatar,
             Status = tu.Status,
             TeamRole = tu.TeamRole
         });
@@ -353,6 +354,44 @@ public class TeamController : ControllerBase
 
         await _teamRepo.SaveAsync();
         return Ok(new { message = "Bạn đã rời đội và nhường quyền Đội trưởng thành công." });
+    }
+    
+    [Authorize]
+    [HttpDelete("{id}/members/{memberId}")]
+    public async Task<IActionResult> KickMember(long id, long memberId)
+    {
+        var managerId = _baseServices.GetCurrentUserId();
+        if (managerId == null) return Unauthorized();
+
+        var team = await _teamRepo.GetByIdAsync(id);
+        if (team == null) return NotFound(new { message = "Đội bóng không tồn tại." });
+
+        if (team.ManagerId != managerId)
+            return Forbid(); // Chỉ Captain mới có quyền kick
+
+        if (memberId == managerId)
+            return BadRequest(new { message = "Bạn không thể tự kick chính mình. Hãy dùng chức năng 'Rời đội' nếu muốn." });
+
+        var member = await _teamUserRepo.Find(tu => tu.TeamId == id && tu.UserId == memberId)
+            .FirstOrDefaultAsync();
+
+        if (member == null)
+            return NotFound(new { message = "Thành viên không tồn tại trong đội." });
+
+        _teamUserRepo.Remove(member);
+
+        await _notificationRepo.AddAsync(new Notification
+        {
+            UserId = memberId,
+            Message = $"Bạn đã bị xóa khỏi đội bóng {team.Name} bởi đội trưởng.",
+            ActionLink = "/teams"
+        });
+
+        await _teamUserRepo.SaveAsync();
+        await _notificationRepo.SaveAsync();
+        await _hubContext.Clients.Group($"User_{memberId}").SendAsync("ReceiveNotification");
+
+        return Ok(new { message = "Đã mời thành viên rời khỏi đội." });
     }
 }
 
